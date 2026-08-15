@@ -27,7 +27,9 @@
 #include <deque>
 #include <unordered_map>
 #include <mutex>
+#include <shared_mutex>
 #include <set>
+#include <memory>
 
 namespace openxr_api_layer {
 
@@ -50,20 +52,27 @@ namespace openxr_api_layer {
         void trackSwapchain(XrSwapchain handle, const XrSwapchainCreateInfo& createInfo);
         void untrackSwapchain(XrSwapchain handle, OpenXrApi* openXrApi);
 
-        Swapchain* getSwapchain(XrSwapchain handle);
+        // Explicitly destroys all layer-created full-FOV swapchains.
+        // Must be called before xrDestroySession.
+        void destroyAllFullFovSwapchains(OpenXrApi* openXrApi);
+
+        // Returns a shared_ptr so callers can keep the Swapchain alive for as long as they
+        // need it — e.g. across an entire frame of composition, even if untracked meanwhile.
+        std::shared_ptr<Swapchain> getSwapchain(XrSwapchain handle);
 
         void handleAcquire(XrSwapchain handle, OpenXrApi* openXrApi);
         bool handleRelease(XrSwapchain handle);
 
         std::set<XrSwapchain> checkAndResetDeferredReleases();
 
-        // Explicitly destroys all layer-created full-FOV swapchains.
-        // Must be called before xrDestroySession.
-        void destroyAllFullFovSwapchains(OpenXrApi* openXrApi);
-
       private:
-        std::mutex m_mutex;
-        std::unordered_map<XrSwapchain, Swapchain> m_swapchains;
+        // shared_mutex: getSwapchain (read) takes a shared lock; all write methods
+        // take a unique lock. mutable so shared_lock can be acquired from the const-capable
+        // read path.
+        mutable std::shared_mutex m_mutex;
+        // Stored as shared_ptrs so a Swapchain outlives untracking and stays valid for any
+        // in-flight frame that still holds a reference to it.
+        std::unordered_map<XrSwapchain, std::shared_ptr<Swapchain>> m_swapchains;
         bool m_needDeferredSwapchainReleaseQuirk{false};
     };
 

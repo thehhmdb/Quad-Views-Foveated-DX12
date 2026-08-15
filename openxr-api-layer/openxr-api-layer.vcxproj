@@ -75,26 +75,26 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(ProjectDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)..\obj\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)\bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\obj\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>$(SolutionName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(ProjectDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)..\obj\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)\bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\obj\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>$(SolutionName)-32</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(ProjectDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)..\obj\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)\bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\obj\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>$(SolutionName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(ProjectDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)..\obj\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)\bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\obj\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>$(SolutionName)-32</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -105,7 +105,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(IntDir);$(ProjectDir);$(ProjectDir)\framework;$(SolutionDir)\external\fmt\include;$(SolutionDir)\external\OpenXR-SDK\include;$(SolutionDir)\external\OpenXR-SDK\src\common;$(SolutionDir)\external\OpenXR-MixedReality\Shared\XrUtility;$(SolutionDir)\external\OpenXR-MixedReality\Shared\SampleShared;$(SolutionDir)\external\OpenXR-MixedReality\shared\ext;$(SolutionDir)\external\OpenXR-MixedReality\shared\ext\DirectXMath\Inc;$(SolutionDir)\external\FidelityFX-CAS\ffx-cas</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);$(ProjectDir);$(ProjectDir)\framework;$(ProjectDir)..\external\fmt\include;$(ProjectDir)..\external\OpenXR-SDK\include;$(ProjectDir)..\external\OpenXR-SDK\src\common;$(ProjectDir)..\external\OpenXR-MixedReality\Shared\XrUtility;$(ProjectDir)..\external\OpenXR-MixedReality\Shared\SampleShared;$(ProjectDir)..\external\OpenXR-MixedReality\shared\ext;$(ProjectDir)..\external\FidelityFX-CAS\ffx-cas;$(ProjectDir)..\external\FidelityFX-FSR\ffx-fsr</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
@@ -145,21 +145,10 @@ copy $(SolutionDir)\settings.cfg $(OutDir)
     </PreLinkEvent>
     <PreBuildEvent>
       <Command>python $(ProjectDir)\framework\dispatch_generator.py
-
-if not exist $(SolutionDir)\version.info goto :skip_version
-for /f "delims== tokens=1,2" %%G in ($(SolutionDir)\version.info) do set %%G=%%H
-$(SolutionDir)\scripts\sed.exe -i "s/const unsigned int LayerVersionMajor = .*;$/const unsigned int LayerVersionMajor = %major%;/g" $(ProjectDir)\version.h
-$(SolutionDir)\scripts\sed.exe -i "s/const unsigned int LayerVersionMinor = .*;$/const unsigned int LayerVersionMinor = %minor%;/g" $(ProjectDir)\version.h
-$(SolutionDir)\scripts\sed.exe -i "s/const unsigned int LayerVersionPatch = .*;$/const unsigned int LayerVersionPatch = %patch%;/g" $(ProjectDir)\version.h
-$(SolutionDir)\scripts\sed.exe -i "s/FILEVERSION .*$/FILEVERSION %major%,%minor%,%patch%,0/g" $(ProjectDir)\resource.rc
-$(SolutionDir)\scripts\sed.exe -i "s/PRODUCTVERSION .*$/PRODUCTVERSION %major%,%minor%,%patch%,0/g" $(ProjectDir)\resource.rc
-$(SolutionDir)\scripts\sed.exe -i "s/VALUE \"FileVersion\", \".*\"$/VALUE \"FileVersion\", \"%major%.%minor%.%patch%.0\"/g" $(ProjectDir)\resource.rc
-$(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"ProductVersion\", \"%major%.%minor%.%patch%.0\"/g" $(ProjectDir)\resource.rc
-:skip_version
 </Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>Generating layer dispatcher &amp; version info...</Message>
+      <Message>Generating layer dispatcher...</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -170,7 +159,7 @@ $(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"P
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(IntDir);$(ProjectDir);$(ProjectDir)\framework;$(SolutionDir)\external\fmt\include;$(SolutionDir)\external\OpenXR-SDK\include;$(SolutionDir)\external\OpenXR-SDK\src\common;$(SolutionDir)\external\OpenXR-MixedReality\Shared\XrUtility;$(SolutionDir)\external\OpenXR-MixedReality\Shared\SampleShared;$(SolutionDir)\external\OpenXR-MixedReality\shared\ext;$(SolutionDir)\external\OpenXR-MixedReality\shared\ext\DirectXMath\Inc;$(SolutionDir)\external\FidelityFX-CAS\ffx-cas</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);$(ProjectDir);$(ProjectDir)\framework;$(ProjectDir)..\external\fmt\include;$(ProjectDir)..\external\OpenXR-SDK\include;$(ProjectDir)..\external\OpenXR-SDK\src\common;$(ProjectDir)..\external\OpenXR-MixedReality\Shared\XrUtility;$(ProjectDir)..\external\OpenXR-MixedReality\Shared\SampleShared;$(ProjectDir)..\external\OpenXR-MixedReality\shared\ext;$(ProjectDir)..\external\FidelityFX-CAS\ffx-cas;$(ProjectDir)..\external\FidelityFX-FSR\ffx-fsr</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
@@ -210,21 +199,10 @@ copy $(SolutionDir)\settings.cfg $(OutDir)
     </PreLinkEvent>
     <PreBuildEvent>
       <Command>python $(ProjectDir)\framework\dispatch_generator.py
-
-if not exist $(SolutionDir)\version.info goto :skip_version
-for /f "delims== tokens=1,2" %%G in ($(SolutionDir)\version.info) do set %%G=%%H
-$(SolutionDir)\scripts\sed.exe -i "s/const unsigned int LayerVersionMajor = .*;$/const unsigned int LayerVersionMajor = %major%;/g" $(ProjectDir)\version.h
-$(SolutionDir)\scripts\sed.exe -i "s/const unsigned int LayerVersionMinor = .*;$/const unsigned int LayerVersionMinor = %minor%;/g" $(ProjectDir)\version.h
-$(SolutionDir)\scripts\sed.exe -i "s/const unsigned int LayerVersionPatch = .*;$/const unsigned int LayerVersionPatch = %patch%;/g" $(ProjectDir)\version.h
-$(SolutionDir)\scripts\sed.exe -i "s/FILEVERSION .*$/FILEVERSION %major%,%minor%,%patch%,0/g" $(ProjectDir)\resource.rc
-$(SolutionDir)\scripts\sed.exe -i "s/PRODUCTVERSION .*$/PRODUCTVERSION %major%,%minor%,%patch%,0/g" $(ProjectDir)\resource.rc
-$(SolutionDir)\scripts\sed.exe -i "s/VALUE \"FileVersion\", \".*\"$/VALUE \"FileVersion\", \"%major%.%minor%.%patch%.0\"/g" $(ProjectDir)\resource.rc
-$(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"ProductVersion\", \"%major%.%minor%.%patch%.0\"/g" $(ProjectDir)\resource.rc
-:skip_version
 </Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>Generating layer dispatcher &amp; version info...</Message>
+      <Message>Generating layer dispatcher...</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -237,7 +215,7 @@ $(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"P
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(IntDir);$(ProjectDir);$(ProjectDir)\framework;$(SolutionDir)\external\fmt\include;$(SolutionDir)\external\OpenXR-SDK\include;$(SolutionDir)\external\OpenXR-SDK\src\common;$(SolutionDir)\external\OpenXR-MixedReality\Shared\XrUtility;$(SolutionDir)\external\OpenXR-MixedReality\Shared\SampleShared;$(SolutionDir)\external\OpenXR-MixedReality\shared\ext;$(SolutionDir)\external\OpenXR-MixedReality\shared\ext\DirectXMath\Inc;$(SolutionDir)\external\FidelityFX-CAS\ffx-cas</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);$(ProjectDir);$(ProjectDir)\framework;$(ProjectDir)..\external\fmt\include;$(ProjectDir)..\external\OpenXR-SDK\include;$(ProjectDir)..\external\OpenXR-SDK\src\common;$(ProjectDir)..\external\OpenXR-MixedReality\Shared\XrUtility;$(ProjectDir)..\external\OpenXR-MixedReality\Shared\SampleShared;$(ProjectDir)..\external\OpenXR-MixedReality\shared\ext;$(ProjectDir)..\external\FidelityFX-CAS\ffx-cas;$(ProjectDir)..\external\FidelityFX-FSR\ffx-fsr</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -279,21 +257,10 @@ copy $(SolutionDir)\settings.cfg $(OutDir)
     </PreLinkEvent>
     <PreBuildEvent>
       <Command>python $(ProjectDir)\framework\dispatch_generator.py
-
-if not exist $(SolutionDir)\version.info goto :skip_version
-for /f "delims== tokens=1,2" %%G in ($(SolutionDir)\version.info) do set %%G=%%H
-$(SolutionDir)\scripts\sed.exe -i "s/const unsigned int LayerVersionMajor = .*;$/const unsigned int LayerVersionMajor = %major%;/g" $(ProjectDir)\version.h
-$(SolutionDir)\scripts\sed.exe -i "s/const unsigned int LayerVersionMinor = .*;$/const unsigned int LayerVersionMinor = %minor%;/g" $(ProjectDir)\version.h
-$(SolutionDir)\scripts\sed.exe -i "s/const unsigned int LayerVersionPatch = .*;$/const unsigned int LayerVersionPatch = %patch%;/g" $(ProjectDir)\version.h
-$(SolutionDir)\scripts\sed.exe -i "s/FILEVERSION .*$/FILEVERSION %major%,%minor%,%patch%,0/g" $(ProjectDir)\resource.rc
-$(SolutionDir)\scripts\sed.exe -i "s/PRODUCTVERSION .*$/PRODUCTVERSION %major%,%minor%,%patch%,0/g" $(ProjectDir)\resource.rc
-$(SolutionDir)\scripts\sed.exe -i "s/VALUE \"FileVersion\", \".*\"$/VALUE \"FileVersion\", \"%major%.%minor%.%patch%.0\"/g" $(ProjectDir)\resource.rc
-$(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"ProductVersion\", \"%major%.%minor%.%patch%.0\"/g" $(ProjectDir)\resource.rc
-:skip_version
 </Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>Generating layer dispatcher &amp; version info...</Message>
+      <Message>Generating layer dispatcher...</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -306,7 +273,7 @@ $(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"P
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(IntDir);$(ProjectDir);$(ProjectDir)\framework;$(SolutionDir)\external\fmt\include;$(SolutionDir)\external\OpenXR-SDK\include;$(SolutionDir)\external\OpenXR-SDK\src\common;$(SolutionDir)\external\OpenXR-MixedReality\Shared\XrUtility;$(SolutionDir)\external\OpenXR-MixedReality\Shared\SampleShared;$(SolutionDir)\external\OpenXR-MixedReality\shared\ext;$(SolutionDir)\external\OpenXR-MixedReality\shared\ext\DirectXMath\Inc;$(SolutionDir)\external\FidelityFX-CAS\ffx-cas</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);$(ProjectDir);$(ProjectDir)\framework;$(ProjectDir)..\external\fmt\include;$(ProjectDir)..\external\OpenXR-SDK\include;$(ProjectDir)..\external\OpenXR-SDK\src\common;$(ProjectDir)..\external\OpenXR-MixedReality\Shared\XrUtility;$(ProjectDir)..\external\OpenXR-MixedReality\Shared\SampleShared;$(ProjectDir)..\external\OpenXR-MixedReality\shared\ext;$(ProjectDir)..\external\FidelityFX-CAS\ffx-cas;$(ProjectDir)..\external\FidelityFX-FSR\ffx-fsr</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -348,21 +315,10 @@ copy $(SolutionDir)\settings.cfg $(OutDir)
     </PreLinkEvent>
     <PreBuildEvent>
       <Command>python $(ProjectDir)\framework\dispatch_generator.py
-
-if not exist $(SolutionDir)\version.info goto :skip_version
-for /f "delims== tokens=1,2" %%G in ($(SolutionDir)\version.info) do set %%G=%%H
-$(SolutionDir)\scripts\sed.exe -i "s/const unsigned int LayerVersionMajor = .*;$/const unsigned int LayerVersionMajor = %major%;/g" $(ProjectDir)\version.h
-$(SolutionDir)\scripts\sed.exe -i "s/const unsigned int LayerVersionMinor = .*;$/const unsigned int LayerVersionMinor = %minor%;/g" $(ProjectDir)\version.h
-$(SolutionDir)\scripts\sed.exe -i "s/const unsigned int LayerVersionPatch = .*;$/const unsigned int LayerVersionPatch = %patch%;/g" $(ProjectDir)\version.h
-$(SolutionDir)\scripts\sed.exe -i "s/FILEVERSION .*$/FILEVERSION %major%,%minor%,%patch%,0/g" $(ProjectDir)\resource.rc
-$(SolutionDir)\scripts\sed.exe -i "s/PRODUCTVERSION .*$/PRODUCTVERSION %major%,%minor%,%patch%,0/g" $(ProjectDir)\resource.rc
-$(SolutionDir)\scripts\sed.exe -i "s/VALUE \"FileVersion\", \".*\"$/VALUE \"FileVersion\", \"%major%.%minor%.%patch%.0\"/g" $(ProjectDir)\resource.rc
-$(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"ProductVersion\", \"%major%.%minor%.%patch%.0\"/g" $(ProjectDir)\resource.rc
-:skip_version
 </Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>Generating layer dispatcher &amp; version info...</Message>
+      <Message>Generating layer dispatcher...</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -377,6 +333,8 @@ $(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"P
     <ClInclude Include="compositor.h" />
     <ClInclude Include="d3d11_compositor.h" />
     <ClInclude Include="d3d12_compositor.h" />
+    <ClInclude Include="d3d12_descriptor_layout.h" />
+    <ClInclude Include="d3d12_constant_buffer.h" />
     <ClInclude Include="utils\general.h" />
     <ClInclude Include="utils\graphics.h" />
     <ClInclude Include="utils\inputs.h" />
@@ -393,6 +351,10 @@ $(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"P
     <ClInclude Include="logic\layer_composer.h" />
     <ClInclude Include="logic\gaze_space_manager.h" />
     <ClInclude Include="logic\swapchain_interceptor.h" />
+    <ClInclude Include="logic\fov_stabilizer.h" />
+    <ClInclude Include="logic\easu_params.h" />
+    <ClInclude Include="logic\fsr1_constants.h" />
+    <ClInclude Include="logic\dither_offset_provider.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\external\fmt\src\format.cc">
@@ -419,6 +381,15 @@ $(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"P
     <ClCompile Include="logic\layer_composer.cpp" />
     <ClCompile Include="logic\gaze_space_manager.cpp" />
     <ClCompile Include="logic\swapchain_interceptor.cpp" />
+    <ClCompile Include="logic\fov_stabilizer.cpp" />
+    <ClCompile Include="logic\easu_params.cpp">
+      <!-- FSR1's ffx_a.h and CAS's ffx_a.h share the same filename but are NOT
+           compatible (no include guards). Force FSR1's version first and drop
+           CAS's path for this TU so <ffx_a.h> resolves to FSR1's, matching
+           ffx_fsr1.h's expectations. -->
+      <AdditionalIncludeDirectories>$(ProjectDir)..\external\FidelityFX-FSR\ffx-fsr;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="logic\dither_offset_provider.cpp" />
     <ClCompile Include="d3d11_compositor.cpp" />
     <ClCompile Include="d3d12_compositor.cpp" />
     <ClCompile Include="pch.cpp">
@@ -427,7 +398,6 @@ $(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"P
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="utils\composition.cpp" />
     <ClCompile Include="utils\d3d11.cpp" />
     <ClCompile Include="utils\d3d12.cpp" />
     <ClCompile Include="utils\general.cpp" />
@@ -467,6 +437,10 @@ $(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"P
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">6.0</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.0</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.0</ShaderModel>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
       <VariableName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">g_%(Filename)</VariableName>
       <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename).h</HeaderFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -502,6 +476,10 @@ $(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"P
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">6.0</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.0</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.0</ShaderModel>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
       <VariableName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">g_%(Filename)</VariableName>
       <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename).h</HeaderFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -537,6 +515,10 @@ $(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"P
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">6.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.0</ShaderModel>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
       <VariableName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">g_%(Filename)</VariableName>
       <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename).h</HeaderFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -572,6 +554,39 @@ $(SolutionDir)\scripts\sed.exe -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"P
       </ObjectFileOutput>
       <AdditionalIncludeDirectories>$(ProjectDir)..\external\FidelityFX-CAS\ffx-cas</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>CAS_SAMPLE_FP16=0;CAS_SAMPLE_SHARPEN_ONLY=1;WIDTH=64;HEIGHT=1;DEPTH=1</PreprocessorDefinitions>
+    </FxCompile>
+    <!-- FSR1 EASU compute shader (SM 6.0 / D3D12) -->
+    <FxCompile Include="FSR1EASU_CS.hlsl">
+      <ShaderType>Compute</ShaderType>
+      <ShaderModel>6.0</ShaderModel>
+      <AdditionalOptions>/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
+      <VariableName>g_FSR1EASU_CS</VariableName>
+      <HeaderFileOutput>$(IntDir)FSR1EASU_CS.h</HeaderFileOutput>
+      <ObjectFileOutput>
+      </ObjectFileOutput>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\external\FidelityFX-CAS\ffx-cas</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>FSR_EASU_F=1;WIDTH=64;HEIGHT=1;DEPTH=1</PreprocessorDefinitions>
+    </FxCompile>
+    <!-- FSR1 EASU compute shader (SM 5.0 / D3D11) -->
+    <FxCompile Include="FSR1EASU_CS11.hlsl">
+      <ShaderType>Compute</ShaderType>
+      <ShaderModel>5.0</ShaderModel>
+      <VariableName>g_FSR1EASU_CS11</VariableName>
+      <HeaderFileOutput>$(IntDir)FSR1EASU_CS11.h</HeaderFileOutput>
+      <ObjectFileOutput>
+      </ObjectFileOutput>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\external\FidelityFX-CAS\ffx-cas</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>FSR_EASU_F=1;WIDTH=64;HEIGHT=1;DEPTH=1</PreprocessorDefinitions>
+    </FxCompile>
+    <!-- Mip-generation compute shader (SM 6.0 / D3D12) -->
+    <FxCompile Include="MipGenCS.hlsl">
+      <ShaderType>Compute</ShaderType>
+      <ShaderModel>6.0</ShaderModel>
+      <AdditionalOptions>/Qstrip_rootsignature %(AdditionalOptions)</AdditionalOptions>
+      <VariableName>g_MipGenCS</VariableName>
+      <HeaderFileOutput>$(IntDir)MipGenCS.h</HeaderFileOutput>
+      <ObjectFileOutput>
+      </ObjectFileOutput>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>

@@ -41,11 +41,70 @@ namespace openxr_api_layer {
         float m_horizontalFocusWideningMultiplier{0.5f};
         float m_verticalFocusWideningMultiplier{0.2f};
         float m_focusWideningDeadzone{0.15f};
+
+        // Focus-view FOV stabilization (boundary shimmer reduction).
+        bool  m_stabilizeFocusFov{true};
+        float m_focusFovHysteresis{0.05f};   // extra margin (radians) before contracting
+        float m_focusFovSmoothing{0.15f};    // lerp factor toward target FOV each frame
+
+        // Blink freeze: when eye tracking is lost (e.g. a blink), hold the focus
+        // FOV at its last stable position instead of following the cached gaze.
+        // When tracking recovers, if the new gaze is far from the frozen region,
+        // keep the frozen FOV for a short grace period so the eye settles and no
+        // blurry transition is visible. Sharp-but-off-center briefly beats blurry.
+        bool     m_blinkFreezeFocusRegion{true};
+        uint32_t m_blinkFreezeGraceMs{150}; // hold frozen FOV this long after recovery
+
+        // FSR1 EASU peripheral upscaling (static aliasing reduction).
+        bool  m_useFSR1EASU{true};
+        float m_fsr1Sharpness{0.2f};        // reserved for optional RCAS pass (deferred)
+
+        // Generate the EASU output mip chain for proper minification
+        // filtering. Set to false to skip the mip-gen loop for max performance
+        // at the cost of some peripheral aliasing.
+        bool  m_useEasuMipGen{true};
+
+        // Spatial anti-aliasing controls for the peripheral (EASU) view.
+        // Default 0.0: a positive global LOD bias darkens the periphery (lower
+        // mips are darker on average), so it is opt-in.
+        float    m_peripheralLodBias{0.25f};  // Blends toward lower mips to kill EASU shimmer
+        uint32_t m_peripheralAnisotropy{8};   // Higher-quality oblique sampling
+        // Localized blur applied to the peripheral texture only in the
+        // focus/peripheral transition zone. Kills boundary shimmer without the
+        // uniform darkening a global LOD bias causes. 0.0 = off, 1.0 = full.
+        float    m_peripheralEdgeBlur{0.5f};
+        // Boundary desaturation strength [0..1]. Drains color from the
+        // transition zone to exploit the eye's low peripheral color acuity,
+        // hiding the resolution seam. 0.0 = off, 1.0 = fully grayscale at seam.
+        float    m_boundaryDesaturation{0.5f};
+
+        // Radial peripheral LOD bias: sharpens the focus center by reducing
+        // the mip bias near the gaze point while keeping the periphery at the
+        // configured bias. 0.0 = disabled (uniform bias only).
+        // Defaults tuned for subtle effect: 0.3 max boost with a wide ramp
+        // (0.2-0.6) gives slight center sharpening without noticeable edge darkening.
+        float    m_radialLodStart{0.2f};
+        float    m_radialLodEnd{0.6f};
+        float    m_radialLodMaxBoost{0.3f};
+        float    m_focusAspect{1.0f};
+
+        // Blue-noise (golden-ratio) temporal rotation of the IGN dither
+        // pattern. When true, the dither offset advances by the golden ratio
+        // each frame instead of the coarse integer `frameCount & 7` scheme,
+        // producing a low-discrepancy sequence that covers the unit square
+        // uniformly and reduces visible shimmer on static images.
+        bool  m_useBlueNoiseDither{true};
+
         bool m_preferFoveatedRendering{true};
         bool m_forceNoEyeTracking{false};
         float m_smoothenFocusViewEdges{0.2f};
-        float m_sharpenFocusView{0.7f};
-        float m_chromaticAberrationCorrection{0.001f};
+        float m_sharpenFocusView{0.0f};
+        // Independent edge blur for the focus-view transition zone. When > 0, a
+        // 4-tap box blur is applied to the focus view in the transition zone to
+        // feather the resolution boundary. Previously coupled to
+        // sharpen_focus_view; now independently controllable. Default 0.3
+        // softens the boundary without visibly affecting the focus interior.
+        float m_featherFocusEdges{0.3f};
         float m_fovTangentX{1.f};
         float m_fovTangentY{1.f};
         bool m_useTurboMode{true};
@@ -59,9 +118,9 @@ namespace openxr_api_layer {
         float m_eyeTrackingConfidenceThreshold{0.5f};
         uint32_t m_eyeGazeCacheTimeoutMs{600};
 
-        // 1-Euro Filter parameters for eye tracking smoothing
-        float m_eyeTrackingMinCutoff{1.0f};    // Lower = more smoothing when still
-        float m_eyeTrackingBeta{0.007f};       // Higher = less smoothing when moving fast
+        // 1-Euro Filter parameters
+        float m_eyeTrackingMinCutoff{1.0f}; // Minimum cutoff frequency
+        float m_eyeTrackingBeta{0.1f};      // Speed coefficient (cutoff slope)
 
         // Context needed for parsing sections
         std::string m_runtimeName;
@@ -71,6 +130,9 @@ namespace openxr_api_layer {
 
         // Quirk flags parsed from config
         bool m_needFocusFovCorrectionQuirk{false};
+
+        // Dithering amount for blend alpha in transition zone
+        float m_transitionDitherAmount{0.04f};
 
         void LoadConfiguration(const std::filesystem::path& configPath);
         bool ParseConfigurationStatement(const std::string& line, unsigned int lineNumber, bool active,

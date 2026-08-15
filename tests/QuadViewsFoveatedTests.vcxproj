@@ -45,8 +45,8 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <_ProjectFileVersion>10.0.26100.0</_ProjectFileVersion>
-    <IncludePath>$(MSBuildThisFileDirectory);$(MSBuildThisFileDirectory)..\openxr-api-layer;$(MSBuildThisFileDirectory)..\openxr-api-layer\framework;$(MSBuildThisFileDirectory)..\packages\Microsoft.Windows.ImplementationLibrary.1.0.220201.1\include;$(MSBuildThisFileDirectory)..\external\fmt\include;$(MSBuildThisFileDirectory)..\external\OpenXR-SDK\include;$(MSBuildThisFileDirectory)..\external\OpenXR-SDK\src\common;$(MSBuildThisFileDirectory)..\external\OpenXR-MixedReality\Shared\XrUtility;$(MSBuildThisFileDirectory)..\external\OpenXR-MixedReality\Shared\SampleShared;$(MSBuildThisFileDirectory)..\external\OpenXR-MixedReality\shared\ext;$(MSBuildThisFileDirectory)..\external\OpenXR-MixedReality\shared\ext\DirectXMath\Inc;$(MSBuildThisFileDirectory)..\external\FidelityFX-CAS\ffx-cas;$(MSBuildThisFileDirectory)..\external\fmt\test\gtest;$(IncludePath)</IncludePath>
-    <LibraryPath>$(MSBuildThisFileDirectory)..\openxr-api-layer\bin\x64\$(Configuration);$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProjectDir)..\tests;$(ProjectDir)..\openxr-api-layer\logic;$(ProjectDir)..\openxr-api-layer;$(ProjectDir)..\openxr-api-layer\framework;$(ProjectDir)..\obj\x64\$(Configuration);$(ProjectDir)..\packages\Microsoft.Windows.ImplementationLibrary.1.0.220201.1\include;$(ProjectDir)..\external\fmt\include;$(ProjectDir)..\external\OpenXR-SDK\include;$(ProjectDir)..\external\OpenXR-SDK\src\common;$(ProjectDir)..\external\OpenXR-MixedReality\Shared\XrUtility;$(ProjectDir)..\external\OpenXR-MixedReality\Shared\SampleShared;$(ProjectDir)..\external\OpenXR-MixedReality\shared\ext;$(ProjectDir)..\external\FidelityFX-FSR\ffx-fsr;$(ProjectDir)..\external\FidelityFX-CAS\ffx-cas;P:\Dev\streamline-sdk-v2.12.0\include;$(ProjectDir)..\external\fmt\test\gtest;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)..\openxr-api-layer\bin\x64\$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -60,8 +60,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(LibraryPath)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>P:\Dev\streamline-sdk-v2.12.0\lib\x64;$(LibraryPath)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>d3d11.lib;d3d12.lib;d3dcompiler.lib;dxgi.lib;sl.interposer.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -80,8 +80,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(LibraryPath)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>P:\Dev\streamline-sdk-v2.12.0\lib\x64;$(LibraryPath)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>d3d11.lib;d3d12.lib;d3dcompiler.lib;dxgi.lib;sl.interposer.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -89,29 +89,59 @@
     <ClCompile Include="TestViewMath.cpp" />
     <ClCompile Include="TestFramePipeline.cpp" />
     <ClCompile Include="TestEyeTracker.cpp" />
-    <ClCompile Include="$(SolutionDir)external\fmt\test\gtest\gmock-gtest-all.cc" />
-    <ClCompile Include="$(SolutionDir)external\fmt\src\format.cc" />
+    <ClCompile Include="TestEyeTrackerHealth.cpp" />
+    <ClCompile Include="TestConfig.cpp" />
+    <ClCompile Include="TestActionManager.cpp" />
+    <ClCompile Include="TestFocusFovQuirk.cpp" />
+    <ClCompile Include="TestSwapchainManager.cpp" />
+    <ClCompile Include="TestViewResolution.cpp" />
+    <ClCompile Include="TestGazeSpaceManager.cpp" />
+    <ClCompile Include="TestEndToEndLogic.cpp" />
+    <ClCompile Include="TestCompositorShared.cpp" />
+    <ClCompile Include="TestCompositorLayout.cpp" />
+    <ClCompile Include="TestCompositorBase.cpp" />
+    <ClCompile Include="TestResourceCache.cpp" />
+    <ClCompile Include="TestCompositorWarp.cpp" />
+    <ClCompile Include="TestFovStabilizer.cpp" />
+    <ClCompile Include="TestEASUParams.cpp" />
+    <ClCompile Include="TestDitherOffsetProvider.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\d3d11_compositor.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\d3d12_compositor.cpp" />
+    <ClCompile Include="$(ProjectDir)..\external\fmt\test\gtest\gmock-gtest-all.cc" />
+    <ClCompile Include="$(ProjectDir)..\external\fmt\src\format.cc" />
     <!-- Logic implementations needed by tests -->
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\logic\config.cpp" />
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\logic\view_math.cpp" />
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\logic\frame_pipeline.cpp" />
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\logic\eye_tracker.cpp" />
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\logic\gaze_space_manager.cpp" />
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\logic\swapchain_interceptor.cpp" />
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\logic\swapchain_manager.cpp" />
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\logic\focus_fov_quirk.cpp" />
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\logic\layer_composer.cpp" />
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\logic\view_resolution.cpp" />
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\logic\action_manager.cpp" />
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\logic\debug_keys.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\config.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\view_math.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\frame_pipeline.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\eye_tracker.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\gaze_space_manager.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\swapchain_interceptor.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\swapchain_manager.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\focus_fov_quirk.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\layer_composer.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\view_resolution.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\action_manager.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\debug_keys.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\fov_stabilizer.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\dither_offset_provider.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\logic\easu_params.cpp">
+      <!-- Force FSR1's ffx_a.h first (see layer vcxproj for rationale). -->
+      <AdditionalIncludeDirectories>$(ProjectDir)..\external\FidelityFX-FSR\ffx-fsr;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <!-- Framework implementations -->
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\framework\dispatch.gen.cpp" />
-    <ClCompile Include="$(SolutionDir)openxr-api-layer\framework\log.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\framework\dispatch.gen.cpp" />
+    <ClCompile Include="$(ProjectDir)..\openxr-api-layer\framework\log.cpp" />
     <!-- Stub for layer-level symbols needed by tests -->
     <ClCompile Include="LayerStubs.cpp" />
+    <ClCompile Include="MockOpenXrApi.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="MockOpenXrApi.h" />
+    <ClInclude Include="WarpHelpers.h" />
+    <ClInclude Include="$(ProjectDir)..\openxr-api-layer\d3d11_compositor.h" />
+    <ClInclude Include="$(ProjectDir)..\openxr-api-layer\d3d12_compositor.h" />
+    <ClInclude Include="$(ProjectDir)..\openxr-api-layer\compositor.h" />
+    <ClInclude Include="$(ProjectDir)..\openxr-api-layer\compositor_base.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

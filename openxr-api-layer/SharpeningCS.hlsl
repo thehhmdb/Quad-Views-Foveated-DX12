@@ -97,19 +97,25 @@ void main(uint3 LocalThreadId : SV_GroupThreadID, uint3 WorkGroupId : SV_GroupID
     // Filter.
     AF3 c;
 
+    // Clamp each output to the fp16 range (±65504) so the CAS render target can
+    // use R16G16B16A16_FLOAT without device-removed crashes on HDR content.
     CasFilter(c.r, c.g, c.b, gxy, const0, const1, sharpenOnly);
+    c = clamp(c, AF3(-65504.0, -65504.0, -65504.0), AF3(65504.0, 65504.0, 65504.0));
     OutputTexture[ASU2(gxy)] = AF4(c, 1);
     gxy.x += 8u;
 
     CasFilter(c.r, c.g, c.b, gxy, const0, const1, sharpenOnly);
+    c = clamp(c, AF3(-65504.0, -65504.0, -65504.0), AF3(65504.0, 65504.0, 65504.0));
     OutputTexture[ASU2(gxy)] = AF4(c, 1);
     gxy.y += 8u;
 
     CasFilter(c.r, c.g, c.b, gxy, const0, const1, sharpenOnly);
+    c = clamp(c, AF3(-65504.0, -65504.0, -65504.0), AF3(65504.0, 65504.0, 65504.0));
     OutputTexture[ASU2(gxy)] = AF4(c, 1);
     gxy.x -= 8u;
 
     CasFilter(c.r, c.g, c.b, gxy, const0, const1, sharpenOnly);
+    c = clamp(c, AF3(-65504.0, -65504.0, -65504.0), AF3(65504.0, 65504.0, 65504.0));
     OutputTexture[ASU2(gxy)] = AF4(c, 1);
 
 #endif

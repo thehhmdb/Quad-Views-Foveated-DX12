@@ -9,7 +9,7 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions :
 //
-// The above copyright noticeand this permission notice shall be included in all
+// The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -23,13 +23,42 @@
 #include "pch.h"
 #include "log.h"
 
-namespace {
-    constexpr uint32_t k_maxLoggedErrors = 100;
-    uint32_t g_globalErrorCount = 0;
-} // namespace
+#include <cstdlib>
 
 namespace openxr_api_layer::log {
     extern std::ofstream logStream;
+}
+
+namespace {
+    constexpr uint32_t k_maxLoggedErrors = 100;
+    uint32_t g_globalErrorCount = 0;
+
+    // Mutex to serialize log writes from multiple threads. Without this,
+    // concurrent LogString calls interleave their output, producing
+    // half-written lines.
+    std::mutex g_logMutex;
+
+    // Flush the log stream on process exit. Without this, the OS buffer is
+    // lost when the process crashes or is killed, and the last few lines
+    // are never written to disk.
+    void FlushLogOnExit() {
+        std::lock_guard<std::mutex> lock(g_logMutex);
+        if (openxr_api_layer::log::logStream.is_open()) {
+            openxr_api_layer::log::logStream.flush();
+        }
+    }
+
+    // Register the exit handler once. On normal process termination, flush
+    // the log stream so the buffered tail of the log is not lost.
+    struct LogExitHandler {
+        LogExitHandler() {
+            std::atexit(FlushLogOnExit);
+        }
+    };
+    LogExitHandler g_logExitHandler;
+} // namespace
+
+namespace openxr_api_layer::log {
 
     // {cbf3adcd-42b1-4c38-830c-91980af201f8}
     TRACELOGGING_DEFINE_PROVIDER(g_traceProvider,
@@ -64,52 +93,73 @@ namespace openxr_api_layer::log {
         return false;
     }
 
-    namespace {
+    // Core string logging function. Writes an already-formatted message with a
+    // timestamp and level prefix. Performance notes:
+    //  - localtime_s is thread-safe (std::localtime takes a CRT lock).
+    //  - OutputDebugStringA is only called when a debugger is attached; it is a
+    //    slow OS call that would otherwise run for every message.
+    //  - The file stream is NOT flushed per-message; the OS buffers writes and
+    //    flushes periodically or on close. Per-message flush() was the single
+    //    largest logging cost (a synchronous disk write per line).
+    void LogString(LogLevel level, std::string_view msg) {
+        const std::time_t now = std::time(nullptr);
+        struct tm timeinfo;
+        localtime_s(&timeinfo, &now);
 
-        // Utility logging function.
-        void InternalLog(LogLevel level, const char* fmt, va_list va) {
-            const std::time_t now = std::time(nullptr);
+        char timeBuf[64];
+        std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S %z ", &timeinfo);
 
-            // Level prefix
-            const char* levelStr = "";
-            switch (level) {
-                case LogLevel::Verbose:     levelStr = "[V] "; break;
-                case LogLevel::Debug:       levelStr = "[D] "; break;
-                case LogLevel::Information: levelStr = "[I] "; break;
-                case LogLevel::Warning:     levelStr = "[W] "; break;
-                case LogLevel::Error:       levelStr = "[E] "; break;
-                case LogLevel::Fatal:       levelStr = "[F] "; break;
-                default: levelStr = ""; break;
-            }
+        const char* levelStr = "";
+        switch (level) {
+            case LogLevel::Verbose:     levelStr = "[V] "; break;
+            case LogLevel::Debug:       levelStr = "[D] "; break;
+            case LogLevel::Information: levelStr = "[I] "; break;
+            case LogLevel::Warning:     levelStr = "[W] "; break;
+            case LogLevel::Error:       levelStr = "[E] "; break;
+            case LogLevel::Fatal:       levelStr = "[F] "; break;
+            default: break;
+        }
 
-            char buf[2048];
-            size_t offset = std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S %z ", std::localtime(&now));
-            strcat_s(buf + offset, sizeof(buf) - offset, levelStr);
-            offset += strlen(levelStr);
-            vsnprintf_s(buf + offset, sizeof(buf) - offset, _TRUNCATE, fmt, va);
-            OutputDebugStringA(buf);
-            if (logStream.is_open()) {
-                logStream << buf;
-                logStream.flush();
+        if (IsDebuggerPresent()) {
+            // msg is a string_view with no null-termination guarantee, so copy
+            // into a std::string before calling the C-string OS API.
+            const std::string line = std::string(timeBuf) + levelStr + std::string(msg);
+            OutputDebugStringA(line.c_str());
+        }
+
+        if (logStream.is_open()) {
+            std::lock_guard<std::mutex> lock(g_logMutex);
+            // Callers embed their own trailing newline in the message.
+            logStream << timeBuf << levelStr << msg;
+            // Guarantee newline termination: if the caller forgot the trailing
+            // newline, or the message was truncated by the 2048-byte buffer in
+            // Log()/ErrorLog()/DebugLog(), the next line would otherwise start
+            // on the same physical line.
+            if (msg.empty() || msg.back() != '\n') {
+                logStream << '\n';
             }
         }
-    } // namespace
+    }
 
     void Log(const char* fmt, ...) {
         va_list va;
         va_start(va, fmt);
-        InternalLog(LogLevel::Information, fmt, va);
+        char buf[2048];
+        vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, va);
         va_end(va);
+        LogString(LogLevel::Information, buf);
     }
 
     void ErrorLog(const char* fmt, ...) {
         if (g_globalErrorCount++ < k_maxLoggedErrors) {
             va_list va;
             va_start(va, fmt);
-            InternalLog(LogLevel::Error, fmt, va);
+            char buf[2048];
+            vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, va);
             va_end(va);
+            LogString(LogLevel::Error, buf);
             if (g_globalErrorCount == k_maxLoggedErrors) {
-                Log("Maximum number of errors logged. Going silent.");
+                LogString(LogLevel::Information, "Maximum number of errors logged. Going silent.");
             }
         }
     }
@@ -118,8 +168,10 @@ namespace openxr_api_layer::log {
 #ifdef _DEBUG
         va_list va;
         va_start(va, fmt);
-        InternalLog(LogLevel::Debug, fmt, va);
+        char buf[2048];
+        vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, va);
         va_end(va);
+        LogString(LogLevel::Debug, buf);
 #endif
     }
 

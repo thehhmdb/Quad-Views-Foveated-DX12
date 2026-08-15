@@ -47,12 +47,24 @@ namespace openxr_api_layer {
         bool useQuadViews;
         float smoothenFocusViewEdges;
         float sharpenFocusView;
-        float chromaticAberrationCorrection;
+        float featherFocusEdges;   // edge blur amount for the focus-view transition zone (0.0–1.0)
         bool debugFocusView;
         bool debugEyeGaze;
         XrVector2f eyeGaze;
         XrCompositionLayerFlags layerFlags;
-        uint32_t frameCount;          // Frame counter for temporal effects (jitter, history blend)
+        float transitionDitherAmount;
+        uint32_t frameCount;
+        bool useFSR1EASU;          // Run EASU upscale on peripheral texture
+        bool skipMipGen;           // Skip the EASU mip-gen loop (perf escape hatch)
+        float peripheralLodBias;   // Peripheral sampler LOD bias (spatial AA)
+        uint32_t peripheralAnisotropy; // Peripheral sampler anisotropy level
+        float peripheralEdgeBlur;  // Localized peripheral transition-zone blur (0.0–1.0)
+        float boundaryDesaturation; // Transition-zone desaturation strength (0.0–1.0)
+        float radialLodStart;      // Radial LOD bias start distance (layer1TexCoord space)
+        float radialLodEnd;        // Radial LOD bias end distance
+        float radialLodMaxBoost;   // Max additional LOD bias at periphery edge (0 = disabled)
+        float focusAspect;         // Aspect ratio correction for focus region
+        DirectX::XMFLOAT2 blueNoiseOffset; // Per-frame IGN dither offset
     };
 
     // Abstract interface for graphics API-specific composition.
@@ -95,15 +107,9 @@ namespace openxr_api_layer {
         // swapchain is destroyed so the compositor does not hold dangling raw texture pointers.
         virtual void evictSwapchainState(XrSwapchain handle) = 0;
 
-        // FIX: Wait for the GPU to finish all composition work.
-        // Must be called before destroying swapchains or the session.
+        // Block the CPU until the GPU has finished all previously submitted work.
+        // Used during swapchain destruction to avoid use-after-free races.
         virtual void waitForGpuIdle() = 0;
-
-        // Returns the composition fence and current value for external synchronization.
-        // Callers can wait on this fence before destroying swapchains to ensure
-        // all GPU work referencing the swapchain images has completed.
-        virtual void* getCompositionFence() const { return nullptr; }
-        virtual uint64_t getCompositionFenceValue() const { return 0; }
     };
 
     // Factory function to create the appropriate compositor for the detected graphics API.

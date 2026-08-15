@@ -32,6 +32,7 @@
 #include "logic/focus_fov_quirk.h"
 #include "views.h"
 #include <set>
+#include <unordered_map>
 #include <vector>
 
 namespace openxr_api_layer {
@@ -54,11 +55,8 @@ namespace openxr_api_layer {
                                bool useQuadViews,
                                bool useFovTangent,
                                bool requestedDepthSubmission,
-                               uint32_t frameCount,
-                               std::vector<XrCompositionLayerProjection>& projectionAllocator,
-                               std::vector<std::array<XrCompositionLayerProjectionView, xr::StereoView::Count>>& projectionViewAllocator,
                                std::vector<const XrCompositionLayerBaseHeader*>& outLayers,
-                               std::set<XrSwapchain>& outSwapchainsToRelease);
+                               std::vector<XrSwapchain>& outSwapchainsToRelease);
 
       private:
         // Composites the focus view and stereo view into a single stereo view.
@@ -68,8 +66,7 @@ namespace openxr_api_layer {
                                   const XrCompositionLayerProjectionView& focusView,
                                   SwapchainManager::Swapchain& swapchainForFocusView,
                                   XrCompositionLayerFlags layerFlags,
-                                  bool useQuadViews,
-                                  uint32_t frameCount);
+                                  bool useQuadViews);
 
         OpenXrApi* m_openXrApi;
         FoveationConfig& m_config;
@@ -78,6 +75,24 @@ namespace openxr_api_layer {
         GraphicsContext& m_graphicsContext;
         EyeTracker& m_eyeTracker;
         FocusFovQuirk& m_focusFovQuirk;
+
+        // Set when the layer's own compositor fails to initialize or a composite step
+        // errors out; processLayers() then falls back to passing through unmodified layers.
+        bool m_compositorFailed{false};
+
+        // Reusable per-frame allocation buffers (avoid per-frame heap alloc/free).
+        // clear()'d and reserve()'d each frame in processLayers(); capacity persists across frames.
+        std::vector<XrCompositionLayerProjection> m_projectionAllocator;
+        std::vector<std::array<XrCompositionLayerProjectionView, xr::StereoView::Count>> m_projectionViewAllocator;
+
+        // Per-frame swapchain lookup cache. getSwapchain() takes a shared_mutex
+        // lock and copies a shared_ptr (2 atomic refcount ops) — called up to 6x
+        // per frame in the hot path. This caches raw Swapchain* by handle for the
+        // duration of one processLayers() call, while keeping the shared_ptr alive
+        // so the entry cannot be destroyed mid-frame.
+        std::unordered_map<XrSwapchain, std::shared_ptr<SwapchainManager::Swapchain>> m_swapchainCache;
+        void clearSwapchainCache();
+        SwapchainManager::Swapchain* getCachedSwapchain(XrSwapchain handle);
     };
 
 } // namespace openxr_api_layer

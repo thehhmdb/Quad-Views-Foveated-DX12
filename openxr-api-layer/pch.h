@@ -9,7 +9,7 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions :
 //
-// The above copyright noticeand this permission notice shall be included in all
+// The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -75,9 +75,6 @@ using Microsoft::WRL::ComPtr;
 #include <d3d12shader.h>
 #endif
 
-// DirectXMath (needed by eye_tracker.cpp for XMVector3NormalizeEst)
-#include <DirectXMath.h>
-
 // OpenXR + Windows-specific definitions.
 #define XR_NO_PROTOTYPES
 #define XR_USE_PLATFORM_WIN32
@@ -105,3 +102,9 @@ using Microsoft::WRL::ComPtr;
 #endif
 
 #include <utils/inputs.h>
+
+namespace openxr_api_layer {
+    // Global flag to indicate the DLL is being unloaded.
+    // Used to skip dangerous GPU synchronization during process teardown.
+    extern bool g_isUnloading;
+} // namespace openxr_api_layer

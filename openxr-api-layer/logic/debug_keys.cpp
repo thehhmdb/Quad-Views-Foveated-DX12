@@ -109,6 +109,18 @@ namespace openxr_api_layer {
                     m_config.m_horizontalFocusOffset = std::clamp(m_config.m_horizontalFocusOffset - 0.01f, -1.f, 1.f);
                 }
             });
+            DEBUG_ACTION(ToggleEASU, 'E', {
+                m_config.m_useFSR1EASU = !m_config.m_useFSR1EASU;
+            });
+            DEBUG_ACTION(ToggleBlueNoiseDither, 'B', {
+                m_config.m_useBlueNoiseDither = !m_config.m_useBlueNoiseDither;
+            });
+            DEBUG_ACTION(DitherAmountLess, 'V', {
+                m_config.m_transitionDitherAmount = std::clamp(m_config.m_transitionDitherAmount - 0.01f, 0.f, 0.1f);
+            });
+            DEBUG_ACTION(DitherAmountMore, 'F', {
+                m_config.m_transitionDitherAmount = std::clamp(m_config.m_transitionDitherAmount + 0.01f, 0.f, 0.1f);
+            });
 
             if (log) {
                 LogInformation("sharpen_focus_view={:.1f}\n", m_config.m_sharpenFocusView);
@@ -118,6 +130,9 @@ namespace openxr_api_layer {
                 LogInformation("focus_horizontal_widening_multiplier={:.2f}\n",
                                 m_config.m_horizontalFocusWideningMultiplier);
                 LogInformation("focus_vertical_widening_multiplier={:.2f}\n", m_config.m_verticalFocusWideningMultiplier);
+                LogInformation("use_fsr1_easu={}\n", m_config.m_useFSR1EASU);
+                LogInformation("use_blue_noise_dither={}\n", m_config.m_useBlueNoiseDither);
+                LogInformation("transition_dither_amount={:.2f}\n", m_config.m_transitionDitherAmount);
             }
         }
     }

@@ -26,6 +26,7 @@
 #include "framework/dispatch.gen.h"
 #include "views.h"
 #include "logic/config.h"
+#include "logic/fov_stabilizer.h"
 
 namespace openxr_api_layer {
 
@@ -38,7 +39,8 @@ namespace openxr_api_layer {
                                   uint32_t viewCount,
                                   XrViewConfigurationType viewConfigType,
                                   bool isGazeValid,
-                                  const XrVector3f& gazeUnitVector);
+                                  const XrVector3f& gazeUnitVector,
+                                  bool wasCacheUsed = false);
 
         bool m_needComputeBaseFov{true};
         XrFovf m_cachedEyeFov[xr::QuadView::Count]{};
@@ -51,6 +53,16 @@ namespace openxr_api_layer {
       private:
         OpenXrApi* m_openXrApi{nullptr};
         FoveationConfig& m_config;
+        FovStabilizer m_fovStabilizer;
+
+        // Blink freeze state: when eye tracking is lost (e.g. blink), hold the
+        // last valid focus-view FOV instead of falling back to cached FOV.
+        // This prevents the post-blink blur caused by the transition from
+        // pre-blink to post-blink gaze position.
+        XrFovf m_frozenFov[xr::StereoView::Count]{};
+        bool m_hasFrozenFov[xr::StereoView::Count]{false};
+        bool m_freezeActive[xr::StereoView::Count]{false};
+        std::chrono::steady_clock::time_point m_freezeRecoveryTime[xr::StereoView::Count]{};
     };
 
 } // namespace openxr_api_layer

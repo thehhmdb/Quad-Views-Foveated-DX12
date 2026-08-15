@@ -25,6 +25,7 @@
 #include "framework/log.h"
 #include "framework/util.h"
 #include "compositor.h"
+#include "logic/dither_offset_provider.h"
 #include "views.h"
 
 namespace openxr_api_layer {
@@ -44,17 +45,52 @@ namespace openxr_api_layer {
           m_eyeTracker(eyeTracker), m_focusFovQuirk(focusFovQuirk) {
     }
 
+    void LayerComposer::clearSwapchainCache() {
+        // Clear the map but keep its bucket capacity for reuse next frame.
+        m_swapchainCache.clear();
+    }
+
+    SwapchainManager::Swapchain* LayerComposer::getCachedSwapchain(XrSwapchain handle) {
+        auto it = m_swapchainCache.find(handle);
+        if (it != m_swapchainCache.end()) {
+            return it->second.get();
+        }
+        // Miss: do the (locked) lookup once and cache the raw pointer + shared_ptr.
+        std::shared_ptr<SwapchainManager::Swapchain> entry = m_swapchainManager.getSwapchain(handle);
+        if (!entry) {
+            return nullptr;
+        }
+        m_swapchainCache.emplace(handle, entry);
+        return entry.get();
+    }
+
     XrResult LayerComposer::processLayers(XrSession session,
                                           const XrFrameEndInfo* frameEndInfo,
                                           bool useQuadViews,
                                           bool useFovTangent,
                                           bool requestedDepthSubmission,
-                                          uint32_t frameCount,
-                                          std::vector<XrCompositionLayerProjection>& projectionAllocator,
-                                          std::vector<std::array<XrCompositionLayerProjectionView, xr::StereoView::Count>>& projectionViewAllocator,
                                           std::vector<const XrCompositionLayerBaseHeader*>& outLayers,
-                                          std::set<XrSwapchain>& outSwapchainsToRelease) {
-        std::set<XrSwapchain> swapchainsToRelease;
+                                          std::vector<XrSwapchain>& outSwapchainsToRelease) {
+        // If the layer's own compositor failed earlier, skip processing and let
+        // xrEndFrame fall through with no patched layers — submitting our custom
+        // quad-view layers to a broken compositor would fail runtime validation.
+        if (m_compositorFailed) {
+            // outLayers.assign(frameEndInfo->layers, frameEndInfo->layers + frameEndInfo->layerCount);
+            return XR_SUCCESS;
+        }
+
+        // Reuse the member allocation buffers (capacity persists across frames).
+        m_projectionAllocator.clear();
+        m_projectionViewAllocator.clear();
+        m_projectionAllocator.reserve(frameEndInfo->layerCount);
+        m_projectionViewAllocator.reserve(frameEndInfo->layerCount);
+
+        // Reset the per-frame swapchain lookup cache (bucket capacity persists).
+        clearSwapchainCache();
+
+        // Use a plain vector instead of a set to avoid per-insert tree allocations;
+        // duplicates are harmless and get deduplicated once at the end of the frame.
+        std::vector<XrSwapchain> swapchainsToRelease;
 
         for (uint32_t i = 0; i < frameEndInfo->layerCount; i++) {
             if (!frameEndInfo->layers[i]) {
@@ -65,52 +101,66 @@ namespace openxr_api_layer {
                 const XrCompositionLayerProjection* proj =
                     reinterpret_cast<const XrCompositionLayerProjection*>(frameEndInfo->layers[i]);
 
-                TraceLoggingWrite(g_traceProvider,
-                                  "xrEndFrame_Layer",
-                                  TLArg(xr::ToCString(proj->type), "Type"),
-                                  TLArg(proj->layerFlags, "Flags"),
-                                  TLXArg(proj->space, "Space"));
+                QVF_TRACE("xrEndFrame_Layer",
+                          TLArg(xr::ToCString(proj->type), "Type"),
+                          TLArg(proj->layerFlags, "Flags"),
+                          TLXArg(proj->space, "Space"));
 
                 if (proj->viewCount != (useQuadViews ? xr::QuadView::Count : xr::StereoView::Count)) {
                     return XR_ERROR_VALIDATION_FAILURE;
                 }
 
-                projectionViewAllocator.push_back(
+                // [DEBUG-QVF] Log the incoming layer exactly as our mod submitted it.
+                for (uint32_t v = 0; v < proj->viewCount; ++v) {
+                    const auto& pv = proj->views[v];
+                    LogDebug("[DEBUG-QVF] input view={} swapchain={:x} arrayIndex={} rect=({},{})-({},{}) "
+                             "fov=(L={:.4f} R={:.4f} U={:.4f} D={:.4f})\n",
+                             v,
+                             (uint64_t)pv.subImage.swapchain,
+                             pv.subImage.imageArrayIndex,
+                             pv.subImage.imageRect.offset.x, pv.subImage.imageRect.offset.y,
+                             pv.subImage.imageRect.extent.width, pv.subImage.imageRect.extent.height,
+                             pv.fov.angleLeft, pv.fov.angleRight, pv.fov.angleUp, pv.fov.angleDown);
+                }
+
+                m_projectionViewAllocator.push_back(
                     {proj->views[xr::StereoView::Left], proj->views[xr::StereoView::Right]});
 
                 for (uint32_t viewIndex = 0; viewIndex < xr::StereoView::Count; viewIndex++) {
                     if (useQuadViews) {
                         for (uint32_t j = viewIndex; j < xr::QuadView::Count; j += xr::StereoView::Count) {
-                            TraceLoggingWrite(
-                                g_traceProvider,
-                                "xrEndFrame_View",
-                                TLArg("Color", "Type"),
-                                TLArg(j, "ViewIndex"),
-                                TLXArg(proj->views[j].subImage.swapchain, "Swapchain"),
-                                TLArg(proj->views[j].subImage.imageArrayIndex, "ImageArrayIndex"),
-                                TLArg(xr::ToString(proj->views[j].subImage.imageRect).c_str(), "ImageRect"),
-                                TLArg(xr::ToString(proj->views[j].pose).c_str(), "Pose"),
-                                TLArg(xr::ToString(proj->views[j].fov).c_str(), "Fov"));
+                            QVF_TRACE("xrEndFrame_View",
+                                      TLArg("Color", "Type"),
+                                      TLArg(j, "ViewIndex"),
+                                      TLXArg(proj->views[j].subImage.swapchain, "Swapchain"),
+                                      TLArg(proj->views[j].subImage.imageArrayIndex, "ImageArrayIndex"),
+                                      TLArg(xr::ToString(proj->views[j].subImage.imageRect).c_str(), "ImageRect"),
+                                      TLArg(xr::ToString(proj->views[j].pose).c_str(), "Pose"),
+                                      TLArg(xr::ToString(proj->views[j].fov).c_str(), "Fov"));
                         }
                     }
 
                     const uint32_t focusViewIndex =
                         useQuadViews ? (viewIndex + xr::StereoView::Count) : viewIndex;
 
+                    // The swapchains are kept alive by shared_ptrs held in the manager,
+                    // so these raw pointers stay valid for the whole frame even if the app
+                    // destroys a swapchain mid-frame. Lookups go through the per-frame cache
+                    // to avoid repeated shared_mutex locks and refcount atomics on the hot path.
                     SwapchainManager::Swapchain* swapchainForStereoView =
-                        m_swapchainManager.getSwapchain(proj->views[viewIndex].subImage.swapchain);
+                        getCachedSwapchain(proj->views[viewIndex].subImage.swapchain);
                     SwapchainManager::Swapchain* swapchainForFocusView =
-                        m_swapchainManager.getSwapchain(proj->views[focusViewIndex].subImage.swapchain);
+                        getCachedSwapchain(proj->views[focusViewIndex].subImage.swapchain);
                     if (!swapchainForStereoView || !swapchainForFocusView) {
                         return XR_ERROR_HANDLE_INVALID;
                     }
 
                     if (swapchainForStereoView->deferredRelease) {
-                        swapchainsToRelease.insert(proj->views[viewIndex].subImage.swapchain);
+                        swapchainsToRelease.push_back(proj->views[viewIndex].subImage.swapchain);
                         swapchainForStereoView->deferredRelease = false;
                     }
                     if (swapchainForFocusView->deferredRelease) {
-                        swapchainsToRelease.insert(proj->views[focusViewIndex].subImage.swapchain);
+                        swapchainsToRelease.push_back(proj->views[focusViewIndex].subImage.swapchain);
                         swapchainForFocusView->deferredRelease = false;
                     }
 
@@ -132,10 +182,9 @@ namespace openxr_api_layer {
                         LogDebug("xrEndFrame_CreateSwapchain: format={}, usageFlags=0x{:x}, arraySize={}, width={}x{}\n",
                                         createInfo.format, createInfo.usageFlags, createInfo.arraySize,
                                         createInfo.width, createInfo.height);
-                        TraceLoggingWrite(g_traceProvider,
-                                          "xrEndFrame_CreateSwapchain",
-                                          TLArg(m_viewManager.m_fullFovResolution.width, "Width"),
-                                          TLArg(m_viewManager.m_fullFovResolution.height, "Height"));
+                        QVF_TRACE("xrEndFrame_CreateSwapchain",
+                                  TLArg(m_viewManager.m_fullFovResolution.width, "Width"),
+                                  TLArg(m_viewManager.m_fullFovResolution.height, "Height"));
                         const XrResult swapchainResult = m_openXrApi->OpenXrApi::xrCreateSwapchain(
                             session, &createInfo, &swapchainForStereoView->fullFovSwapchain);
                         if (swapchainResult != XR_SUCCESS) {
@@ -159,12 +208,18 @@ namespace openxr_api_layer {
                                          focusView,
                                          *swapchainForFocusView,
                                          proj->layerFlags,
-                                         useQuadViews,
-                                         frameCount);
+                                         useQuadViews);
+
+                    // If compositing this view failed, stop patching layers and fall back to
+                    // submitting the app's original layers unchanged.
+                    if (m_compositorFailed) {
+                        outLayers.assign(frameEndInfo->layers, frameEndInfo->layers + frameEndInfo->layerCount);
+                        return XR_SUCCESS;
+                    }
 
                     // Patch the view to reference the new swapchain at full FOV.
                     XrCompositionLayerProjectionView& patchedView =
-                        projectionViewAllocator.back()[viewIndex];
+                        m_projectionViewAllocator.back()[viewIndex];
                     patchedView.fov = m_viewManager.m_cachedEyeFov[viewIndex];
                     patchedView.subImage.swapchain = swapchainForStereoView->fullFovSwapchain;
                     patchedView.subImage.imageArrayIndex = viewIndex;
@@ -179,27 +234,25 @@ namespace openxr_api_layer {
                                 const XrCompositionLayerDepthInfoKHR* depth =
                                     reinterpret_cast<const XrCompositionLayerDepthInfoKHR*>(entry);
 
-                                TraceLoggingWrite(
-                                    g_traceProvider,
-                                    "xrEndFrame_View",
-                                    TLArg("Depth", "Type"),
-                                    TLArg(viewIndex, "ViewIndex"),
-                                    TLXArg(depth->subImage.swapchain, "Swapchain"),
-                                    TLArg(depth->subImage.imageArrayIndex, "ImageArrayIndex"),
-                                    TLArg(xr::ToString(depth->subImage.imageRect).c_str(), "ImageRect"),
-                                    TLArg(depth->nearZ, "Near"),
-                                    TLArg(depth->farZ, "Far"),
-                                    TLArg(depth->minDepth, "MinDepth"),
-                                    TLArg(depth->maxDepth, "MaxDepth"));
+                                QVF_TRACE("xrEndFrame_View",
+                                          TLArg("Depth", "Type"),
+                                          TLArg(viewIndex, "ViewIndex"),
+                                          TLXArg(depth->subImage.swapchain, "Swapchain"),
+                                          TLArg(depth->subImage.imageArrayIndex, "ImageArrayIndex"),
+                                          TLArg(xr::ToString(depth->subImage.imageRect).c_str(), "ImageRect"),
+                                          TLArg(depth->nearZ, "Near"),
+                                          TLArg(depth->farZ, "Far"),
+                                          TLArg(depth->minDepth, "MinDepth"),
+                                          TLArg(depth->maxDepth, "MaxDepth"));
 
                                 SwapchainManager::Swapchain* swapchainForDepthInfo =
-                                    m_swapchainManager.getSwapchain(depth->subImage.swapchain);
+                                    getCachedSwapchain(depth->subImage.swapchain);
                                 if (!swapchainForDepthInfo) {
                                     return XR_ERROR_HANDLE_INVALID;
                                 }
 
                                 if (swapchainForDepthInfo->deferredRelease) {
-                                    swapchainsToRelease.insert(depth->subImage.swapchain);
+                                    swapchainsToRelease.push_back(depth->subImage.swapchain);
                                     swapchainForDepthInfo->deferredRelease = false;
                                 }
                             }
@@ -212,13 +265,26 @@ namespace openxr_api_layer {
                 // struct below, and therefore its entire chain of next structs). This is good: we will
                 // submit a depth that matches the composited view, but that is lower resolution.
 
-                projectionAllocator.push_back(*proj);
+                m_projectionAllocator.push_back(*proj);
                 // Our shader always premultiplies the alpha channel.
-                projectionAllocator.back().layerFlags &= ~XR_COMPOSITION_LAYER_UNPREMULTIPLIED_ALPHA_BIT;
-                projectionAllocator.back().views = projectionViewAllocator.back().data();
-                projectionAllocator.back().viewCount = xr::StereoView::Count;
+                m_projectionAllocator.back().layerFlags &= ~XR_COMPOSITION_LAYER_UNPREMULTIPLIED_ALPHA_BIT;
+                m_projectionAllocator.back().views = m_projectionViewAllocator.back().data();
+                m_projectionAllocator.back().viewCount = xr::StereoView::Count;
+                // [DEBUG-QVF] Log the composed layer exactly as SteamVR will see it.
+                for (uint32_t v = 0; v < m_projectionAllocator.back().viewCount; ++v) {
+                    const auto& pv = m_projectionAllocator.back().views[v];
+                    LogDebug("[DEBUG-QVF] composed view={} swapchain={:x} arrayIndex={} rect=({},{})-({},{}) "
+                             "fov=(L={:.4f} R={:.4f} U={:.4f} D={:.4f}) pose=({:.3f},{:.3f},{:.3f})\n",
+                             v,
+                             (uint64_t)pv.subImage.swapchain,
+                             pv.subImage.imageArrayIndex,
+                             pv.subImage.imageRect.offset.x, pv.subImage.imageRect.offset.y,
+                             pv.subImage.imageRect.extent.width, pv.subImage.imageRect.extent.height,
+                             pv.fov.angleLeft, pv.fov.angleRight, pv.fov.angleUp, pv.fov.angleDown,
+                             pv.pose.position.x, pv.pose.position.y, pv.pose.position.z);
+                }
                 outLayers.push_back(
-                    reinterpret_cast<XrCompositionLayerBaseHeader*>(&projectionAllocator.back()));
+                    reinterpret_cast<XrCompositionLayerBaseHeader*>(&m_projectionAllocator.back()));
 
             } else {
                 if (m_swapchainManager.getDeferredReleaseQuirk()) {
@@ -227,9 +293,9 @@ namespace openxr_api_layer {
                             reinterpret_cast<const XrCompositionLayerQuad*>(frameEndInfo->layers[i]);
 
                         SwapchainManager::Swapchain* swapchainEntry =
-                            m_swapchainManager.getSwapchain(quad->subImage.swapchain);
+                            getCachedSwapchain(quad->subImage.swapchain);
                         if (swapchainEntry && swapchainEntry->deferredRelease) {
-                            swapchainsToRelease.insert(quad->subImage.swapchain);
+                            swapchainsToRelease.push_back(quad->subImage.swapchain);
                             swapchainEntry->deferredRelease = false;
                         }
                     }
@@ -238,13 +304,18 @@ namespace openxr_api_layer {
                     // the runtime does not support any other type of composition layers.
                 }
 
-                TraceLoggingWrite(g_traceProvider,
-                                  "xrEndFrame_Layer",
-                                  TLArg(xr::ToCString(frameEndInfo->layers[i]->type), "Type"));
+                QVF_TRACE("xrEndFrame_Layer",
+                          TLArg(xr::ToCString(frameEndInfo->layers[i]->type), "Type"));
                 outLayers.push_back(frameEndInfo->layers[i]);
             }
         }
 
+        // Deduplicate before release — processLayers() may have pushed the same
+        // swapchain more than once. sort + unique keeps the "each released exactly
+        // once" guarantee a set would have given, without per-insert tree allocations.
+        std::sort(swapchainsToRelease.begin(), swapchainsToRelease.end());
+        swapchainsToRelease.erase(std::unique(swapchainsToRelease.begin(), swapchainsToRelease.end()),
+                                  swapchainsToRelease.end());
         outSwapchainsToRelease = std::move(swapchainsToRelease);
         return XR_SUCCESS;
     }
@@ -255,14 +326,36 @@ namespace openxr_api_layer {
                                               const XrCompositionLayerProjectionView& focusView,
                                               SwapchainManager::Swapchain& swapchainForFocusView,
                                               XrCompositionLayerFlags layerFlags,
-                                             bool useQuadViews,
-                                             uint32_t frameCount) {
+                                              bool useQuadViews) {
         // Lazy initialization of the compositor resources.
         if (!m_graphicsContext.getCompositor()->isInitialized()) {
             LogDebug("Initializing compositor resources (format={})\n",
                             swapchainForStereoView.createInfo.format);
-            m_graphicsContext.getCompositor()->initialize(static_cast<int32_t>(swapchainForStereoView.createInfo.format));
-            LogDebug("Compositor resources initialized\n");
+
+            try {
+                bool initSuccess = m_graphicsContext.getCompositor()->initialize(static_cast<int32_t>(swapchainForStereoView.createInfo.format));
+                if (!initSuccess) {
+                    throw std::runtime_error("Compositor initialize() returned false");
+                }
+                LogDebug("Compositor resources initialized\n");
+            } catch (const std::exception& e) {
+                LogError("Compositor initialization failed: {}\n", e.what());
+                m_compositorFailed = true;
+                return;
+            } catch (...) {
+                LogError("Compositor initialization failed with unknown exception\n");
+                m_compositorFailed = true;
+                return;
+            }
+        }
+
+        // Re-check isInitialized() as a safety net: if initialization threw and was caught
+        // upstream, the compositor will be in an uninitialized state. Skip composition to
+        // prevent null dereference crash.
+        if (!m_graphicsContext.getCompositor()->isInitialized()) {
+            LogError("Compositor initialization failed, skipping composition for this frame.\n");
+            m_compositorFailed = true;
+            return;
         }
 
         // Build compositor parameters
@@ -273,12 +366,34 @@ namespace openxr_api_layer {
         params.useQuadViews = useQuadViews;
         params.smoothenFocusViewEdges = m_config.m_smoothenFocusViewEdges;
         params.sharpenFocusView = m_config.m_sharpenFocusView;
-        params.chromaticAberrationCorrection = m_config.m_chromaticAberrationCorrection;
+        params.featherFocusEdges = m_config.m_featherFocusEdges;
         params.debugFocusView = m_config.m_debugFocusView;
         params.debugEyeGaze = m_config.m_debugEyeGaze;
         params.eyeGaze = m_viewManager.m_eyeGaze[viewIndex];
         params.layerFlags = layerFlags;
-        params.frameCount = frameCount;
+        params.transitionDitherAmount = m_config.m_transitionDitherAmount;
+        static uint32_t s_frameCount = 0;
+        params.frameCount = s_frameCount++;
+        params.useFSR1EASU = m_config.m_useFSR1EASU;
+        params.skipMipGen = !m_config.m_useEasuMipGen;
+        params.peripheralLodBias = m_config.m_peripheralLodBias;
+        params.peripheralAnisotropy = m_config.m_peripheralAnisotropy;
+        params.peripheralEdgeBlur = m_config.m_peripheralEdgeBlur;
+        params.boundaryDesaturation = m_config.m_boundaryDesaturation;
+        params.radialLodStart = m_config.m_radialLodStart;
+        params.radialLodEnd = m_config.m_radialLodEnd;
+        params.radialLodMaxBoost = m_config.m_radialLodMaxBoost;
+        params.focusAspect = m_config.m_focusAspect;
+        // Compute the per-frame blue-noise dither offset. When the
+        // feature is disabled, fall back to the legacy integer rotation so
+        // existing visual behavior is preserved.
+        if (m_config.m_useBlueNoiseDither) {
+            params.blueNoiseOffset = DitherOffsetProvider::offset(params.frameCount);
+        } else {
+            params.blueNoiseOffset = DirectX::XMFLOAT2(
+                static_cast<float>(params.frameCount & 7),
+                static_cast<float>((params.frameCount >> 3) & 7));
+        }
 
         // Build swapchain info
         SwapchainInfo stereoSwapchainInfo;
@@ -293,12 +408,29 @@ namespace openxr_api_layer {
         focusSwapchainInfo.fullFovSwapchain = swapchainForFocusView.fullFovSwapchain;
         focusSwapchainInfo.lastReleasedIndex = swapchainForFocusView.lastReleasedIndex;
 
+        // Defensive validation: a null swapchain handle here means the game passed
+        // an uninitialized composition layer. Skip composition rather than crash.
+        if (!stereoSwapchainInfo.handle || (useQuadViews && !focusSwapchainInfo.handle)) {
+            LogError(
+                "compositeViewContent: null swapchain handle detected "
+                "(stereo={} focus={}) — skipping composition\n",
+                reinterpret_cast<void*>(stereoSwapchainInfo.handle),
+                reinterpret_cast<void*>(focusSwapchainInfo.handle));
+            m_compositorFailed = true;
+            return;
+        }
+
         // Delegate to compositor
-        m_graphicsContext.getCompositor()->compositeView(params,
+        void* result = m_graphicsContext.getCompositor()->compositeView(params,
                                      stereoSwapchainInfo,
                                      stereoView,
                                      focusSwapchainInfo,
                                      focusView);
+        if (!result) {
+            LogError("Compositor returned null destination — aborting composition.\n");
+            m_compositorFailed = true;
+            return;
+        }
     }
 
 } // namespace openxr_api_layer
