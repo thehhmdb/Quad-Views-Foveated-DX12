@@ -299,6 +299,9 @@ namespace openxr_api_layer {
                 } else if (name == "unadvertise") {
                     m_unadvertiseQuadViews = std::stoi(value);
                     parsed = true;
+                } else if (name == "bypass_api_layer") {
+                    m_bypassApiLayer = std::stoi(value) != 0;
+                    parsed = true;
                 } else if (name == "debug_simulate_tracking") {
                     m_debugSimulateTracking = std::stoi(value);
                     parsed = true;

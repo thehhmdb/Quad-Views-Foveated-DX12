@@ -24,6 +24,11 @@ override_functions = [
     "xrPollEvent",
     "xrSyncActions",
     "xrGetVisibilityMaskKHR",
+    "xrGetD3D11GraphicsRequirementsKHR",
+    "xrEnumeratePerformanceMetricsCounterPathsMETA",
+    "xrGetPerformanceMetricsStateMETA",
+    "xrSetPerformanceMetricsStateMETA",
+    "xrQueryPerformanceMetricsCounterMETA",
 ]
 
 # The list of OpenXR functions our layer will use from the runtime.
@@ -56,4 +61,9 @@ requested_functions = [
 ]
 
 # The list of OpenXR extensions our layer will either override or use.
-extensions = ["XR_KHR_visibility_mask", "XR_FB_eye_tracking_social"]
+extensions = [
+    "XR_KHR_visibility_mask",
+    "XR_FB_eye_tracking_social",
+    "XR_KHR_D3D11_enable",
+    "XR_META_performance_metrics",
+]

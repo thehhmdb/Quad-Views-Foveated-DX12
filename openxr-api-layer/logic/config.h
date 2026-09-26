@@ -110,6 +110,14 @@ namespace openxr_api_layer {
         bool m_useTurboMode{true};
         bool m_unadvertiseQuadViews{false};
 
+        // Full bypass of the layer for the active application. Unlike
+        // m_unadvertiseQuadViews (which only suppresses quad-views enumeration),
+        // this flag makes the layer transparent for the whole session: no
+        // extension filtering, no eye-gaze injection, no swapchain interception.
+        // It is evaluated as early as xrCreateInstance() so that applications
+        // which crash during instance/session setup are never disturbed.
+        bool m_bypassApiLayer{false};
+
         bool m_debugSimulateTracking{false};
         bool m_debugFocusView{false};
         bool m_debugEyeGaze{false};

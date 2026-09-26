@@ -3,7 +3,7 @@
   "api_layer": {
     "name": "XR_APILAYER_name",
     "library_path": ".\\XR_APILAYER_name.dll",
-    "api_version": "1.0",
+    "api_version": "1.1",
     "implementation_version": "1",
     "description": "Emulate quad views foveation support",
     "instance_extensions": [

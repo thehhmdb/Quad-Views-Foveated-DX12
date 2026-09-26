@@ -144,7 +144,8 @@ copy $(SolutionDir)\settings.cfg $(OutDir)
       </Message>
     </PreLinkEvent>
     <PreBuildEvent>
-      <Command>python $(ProjectDir)\framework\dispatch_generator.py
+      <Command>python "$(ProjectDir)..\update_version.py" --check
+python $(ProjectDir)\framework\dispatch_generator.py
 </Command>
     </PreBuildEvent>
     <PreBuildEvent>
@@ -198,7 +199,8 @@ copy $(SolutionDir)\settings.cfg $(OutDir)
       </Message>
     </PreLinkEvent>
     <PreBuildEvent>
-      <Command>python $(ProjectDir)\framework\dispatch_generator.py
+      <Command>python "$(ProjectDir)..\update_version.py" --check
+python $(ProjectDir)\framework\dispatch_generator.py
 </Command>
     </PreBuildEvent>
     <PreBuildEvent>
@@ -256,7 +258,8 @@ copy $(SolutionDir)\settings.cfg $(OutDir)
       </Message>
     </PreLinkEvent>
     <PreBuildEvent>
-      <Command>python $(ProjectDir)\framework\dispatch_generator.py
+      <Command>python "$(ProjectDir)..\update_version.py" --check
+python $(ProjectDir)\framework\dispatch_generator.py
 </Command>
     </PreBuildEvent>
     <PreBuildEvent>
@@ -314,7 +317,8 @@ copy $(SolutionDir)\settings.cfg $(OutDir)
       </Message>
     </PreLinkEvent>
     <PreBuildEvent>
-      <Command>python $(ProjectDir)\framework\dispatch_generator.py
+      <Command>python "$(ProjectDir)..\update_version.py" --check
+python $(ProjectDir)\framework\dispatch_generator.py
 </Command>
     </PreBuildEvent>
     <PreBuildEvent>

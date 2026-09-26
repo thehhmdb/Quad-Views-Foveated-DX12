@@ -27,11 +27,12 @@
 namespace openxr_api_layer {
 
     // Helper to create a minimal SwapchainInfo for testing
-    static SwapchainInfo makeSwapchainInfo(uint32_t width, uint32_t height) {
+    static SwapchainInfo makeSwapchainInfo(uint32_t width, uint32_t height, uint32_t arraySize = 1) {
         SwapchainInfo info{};
         info.createInfo = {};
         info.createInfo.width = width;
         info.createInfo.height = height;
+        info.createInfo.arraySize = arraySize;
         return info;
     }
 
@@ -92,6 +93,22 @@ namespace openxr_api_layer {
         auto swapchain = makeSwapchainInfo(3840, 2160);
         auto view = makeProjectionView(100, 50, 960, 540, 2);
         EXPECT_TRUE(NeedsFlattening(view, swapchain));
+    }
+
+    TEST(CompositorSharedTest, NeedsFlattening_ArraySwapchain_FullRectSlice0_Flatten) {
+        // Shared array swapchain (arraySize=2), full rect at slice 0. A plain
+        // TEXTURE2D SRV is invalid on an array resource, so array sources
+        // always take the staged (flatten) path.
+        auto swapchain = makeSwapchainInfo(652, 602, 2);
+        auto view = makeProjectionView(0, 0, 652, 602, 0);
+        EXPECT_TRUE(NeedsFlattening(view, swapchain));
+    }
+
+    TEST(CompositorSharedTest, NeedsFlattening_SingleSliceSwapchain_Unchanged) {
+        // arraySize=1 with a full rect at slice 0 keeps the direct-bind fast path.
+        auto swapchain = makeSwapchainInfo(1920, 1080, 1);
+        auto view = makeProjectionView(0, 0, 1920, 1080, 0);
+        EXPECT_FALSE(NeedsFlattening(view, swapchain));
     }
 
     // ---------------------------------------------------------------------------

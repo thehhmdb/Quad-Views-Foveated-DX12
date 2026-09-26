@@ -107,4 +107,30 @@ namespace openxr_api_layer {
         EXPECT_FALSE(cfg.ParseConfigurationStatement("\t ", 3, false, "", ""));
     }
 
+    TEST(ConfigParserTest, BypassApiLayerDefaultsOff) {
+        FoveationConfig cfg;
+        EXPECT_FALSE(cfg.m_bypassApiLayer);
+    }
+
+    TEST(ConfigParserTest, BypassApiLayerParses) {
+        FoveationConfig cfg;
+        cfg.ParseConfigurationStatement("bypass_api_layer=1", 1, true, "", "");
+        EXPECT_TRUE(cfg.m_bypassApiLayer);
+    }
+
+    TEST(ConfigParserTest, BypassApiLayerSectionScoped) {
+        FoveationConfig cfg;
+        // Not active while a different application's section is selected.
+        bool active = cfg.ParseConfigurationStatement("[exe:OtherGame.exe]", 1, true, "", "MyGame.exe");
+        EXPECT_FALSE(active);
+        cfg.ParseConfigurationStatement("bypass_api_layer=1", 2, active, "", "MyGame.exe");
+        EXPECT_FALSE(cfg.m_bypassApiLayer);
+
+        // Active once the matching section is selected.
+        active = cfg.ParseConfigurationStatement("[exe:MyGame.exe]", 3, active, "", "MyGame.exe");
+        EXPECT_TRUE(active);
+        cfg.ParseConfigurationStatement("bypass_api_layer=1", 4, active, "", "MyGame.exe");
+        EXPECT_TRUE(cfg.m_bypassApiLayer);
+    }
+
 } // namespace openxr_api_layer

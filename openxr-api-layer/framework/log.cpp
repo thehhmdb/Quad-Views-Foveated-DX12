@@ -23,7 +23,9 @@
 #include "pch.h"
 #include "log.h"
 
+#include <atomic>
 #include <cstdlib>
+#include <winnt.h>
 
 namespace openxr_api_layer::log {
     extern std::ofstream logStream;
@@ -38,6 +40,11 @@ namespace {
     // half-written lines.
     std::mutex g_logMutex;
 
+    // When set, every logged line is flushed to disk immediately. Much
+    // slower, but no log tail is lost if the host application crashes.
+    // Toggled via SetFlushPerLine() (used by bypass-mode diagnostics).
+    std::atomic<bool> g_flushPerLine{false};
+
     // Flush the log stream on process exit. Without this, the OS buffer is
     // lost when the process crashes or is killed, and the last few lines
     // are never written to disk.
@@ -48,11 +55,41 @@ namespace {
         }
     }
 
+    // Flush the log stream when a fatal error (unhandled SEH exception, access
+    // violation, abort) terminates the process. The atexit handler above only
+    // runs on NORMAL termination, so a crashing application loses the buffered
+    // tail of the log — historically leaving the log empty or truncated right
+    // when diagnostics were needed most.
+    // Re-entrancy guard for the crash flush below. Vectored exception
+    // handlers run for EVERY exception in the process, including benign
+    // first-chance ones raised by the host application, so the flush must be
+    // minimal and must never recurse.
+    std::atomic<bool> g_inCrashFlush{false};
+
+    LONG WINAPI FlushLogOnCrash(EXCEPTION_POINTERS*) {
+        // Never take g_logMutex here: the exception may have been raised on
+        // this very thread while it was held, and locking it again would
+        // deadlock inside exception dispatch.
+        if (!g_inCrashFlush.exchange(true)) {
+            if (openxr_api_layer::log::logStream.is_open()) {
+                openxr_api_layer::log::logStream.flush();
+            }
+            // Re-arm so a LATER fatal exception still gets flushed (the first
+            // exception in a process is often a benign first-chance one).
+            g_inCrashFlush.store(false);
+        }
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
     // Register the exit handler once. On normal process termination, flush
     // the log stream so the buffered tail of the log is not lost.
     struct LogExitHandler {
         LogExitHandler() {
             std::atexit(FlushLogOnExit);
+            // Also catch abnormal termination. AddVectoredExceptionHandler is
+            // used with the first handler position so it runs even if the
+            // application installs its own filters afterwards.
+            AddVectoredExceptionHandler(1, FlushLogOnCrash);
         }
     };
     LogExitHandler g_logExitHandler;
@@ -101,6 +138,20 @@ namespace openxr_api_layer::log {
     //  - The file stream is NOT flushed per-message; the OS buffers writes and
     //    flushes periodically or on close. Per-message flush() was the single
     //    largest logging cost (a synchronous disk write per line).
+
+    // Flush the buffered log stream to disk immediately. Error paths call this
+    // so their diagnostics survive an unexpected termination.
+    void Flush() {
+        std::lock_guard<std::mutex> lock(g_logMutex);
+        if (logStream.is_open()) {
+            logStream.flush();
+        }
+    }
+
+    void SetFlushPerLine(bool enable) {
+        g_flushPerLine.store(enable);
+    }
+
     void LogString(LogLevel level, std::string_view msg) {
         const std::time_t now = std::time(nullptr);
         struct tm timeinfo;
@@ -137,6 +188,9 @@ namespace openxr_api_layer::log {
             // on the same physical line.
             if (msg.empty() || msg.back() != '\n') {
                 logStream << '\n';
+            }
+            if (g_flushPerLine.load()) {
+                logStream.flush();
             }
         }
     }

@@ -146,11 +146,14 @@ def sync_all(root, major, minor, patch, check_only=False):
 
     # 2. openxr-api-layer/resource.rc
     path = os.path.join(root, "openxr-api-layer", "resource.rc")
+    # NOTE: the numeric FILEVERSION/PRODUCTVERSION lines are indented in the .rc
+    # file, so the pattern must tolerate leading whitespace (and preserve it via
+    # the \1 backreference). A bare '^FILEVERSION' anchor never matches.
     patterns = [
-        (r'^FILEVERSION \d+,\d+,\d+,\d+',
-         "FILEVERSION %s,%s,%s,0" % (major, minor, patch)),
-        (r'^PRODUCTVERSION \d+,\d+,\d+,\d+',
-         "PRODUCTVERSION %s,%s,%s,0" % (major, minor, patch)),
+        (r'^([ \t]*)FILEVERSION \d+,\d+,\d+,\d+',
+         r'\1FILEVERSION %s,%s,%s,0' % (major, minor, patch)),
+        (r'^([ \t]*)PRODUCTVERSION \d+,\d+,\d+,\d+',
+         r'\1PRODUCTVERSION %s,%s,%s,0' % (major, minor, patch)),
         (r'VALUE "FileVersion", "\d+\.\d+\.\d+\.\d+"',
          'VALUE "FileVersion", "%s"' % ver4),
         (r'VALUE "ProductVersion", "\d+\.\d+\.\d+\.\d+"',

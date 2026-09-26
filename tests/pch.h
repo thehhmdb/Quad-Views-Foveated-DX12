@@ -88,8 +88,10 @@ using Microsoft::WRL::ComPtr;
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 
-// OpenXR loader interfaces.
-#include <loader_interfaces.h>
+// OpenXR loader interfaces. OpenXR-SDK 1.1.x moved the loader negotiation
+// interfaces from the SDK-Source-internal loader_interfaces.h into this
+// public header.
+#include <openxr/openxr_loader_negotiation.h>
 
 // OpenXR/DirectX utilities.
 #include <XrError.h>

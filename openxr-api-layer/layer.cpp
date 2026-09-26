@@ -192,6 +192,37 @@ namespace openxr_api_layer {
             return XR_SUCCESS;
         }
 
+        // https://www.khronos.org/registry/OpenXR/specs/1.0/html/xrspec.html#xrDestroyInstance
+        // The destroy chain is split into observable steps (logged at Debug level): resolve
+        // the runtime's destroy pointer, tear down the layer singleton, then call the
+        // runtime. Step 2 destroys the layer object whose method is currently executing, so
+        // the runtime pointer must be resolved and saved on the stack beforehand.
+        XrResult xrDestroyInstance(XrInstance instance) override {
+            LogDebug(">> xrDestroyInstance entry\n");
+
+            // m_xrDestroyInstance is private to the base class, so resolve the runtime
+            // pointer via gipa instead (same pattern as dispatch.cpp's cleanup path).
+            PFN_xrDestroyInstance runtimeDestroy = nullptr;
+            const XrResult resolveResult = m_xrGetInstanceProcAddr(
+                instance, "xrDestroyInstance", reinterpret_cast<PFN_xrVoidFunction*>(&runtimeDestroy));
+
+            LogDebug("   xrDestroyInstance: runtime pointer resolved -> {} ({})\n",
+                            xr::ToCString(resolveResult),
+                            runtimeDestroy ? "valid" : "NULL");
+
+            LogDebug("   xrDestroyInstance: resetting layer singleton (runs destructors)...\n");
+            ResetInstance();
+            // NOTE: `this` is dangling from here on. Only stack locals and free functions
+            // are used below.
+
+            LogDebug("   xrDestroyInstance: singleton reset done, calling runtime destroy...\n");
+            const XrResult result =
+                (XR_SUCCEEDED(resolveResult) && runtimeDestroy) ? runtimeDestroy(instance) : XR_ERROR_RUNTIME_FAILURE;
+
+            LogDebug("<< xrDestroyInstance -> {}\n", xr::ToCString(result));
+            return result;
+        }
+
         // https://www.khronos.org/registry/OpenXR/specs/1.0/html/xrspec.html#xrGetSystem
         XrResult xrGetSystem(XrInstance instance, const XrSystemGetInfo* getInfo, XrSystemId* systemId) override {
             if (getInfo->type != XR_TYPE_SYSTEM_GET_INFO) {
@@ -292,6 +323,7 @@ namespace openxr_api_layer {
         XrResult xrGetSystemProperties(XrInstance instance,
                                        XrSystemId systemId,
                                        XrSystemProperties* properties) override {
+            LogDebug(">> xrGetSystemProperties entry\n");
             QVF_TRACE("xrGetSystemProperties",
                       TLXArg(instance, "Instance"),
                       TLArg((int)systemId, "SystemId"));
@@ -299,6 +331,7 @@ namespace openxr_api_layer {
             const XrResult result = OpenXrApi::xrGetSystemProperties(instance, systemId, properties);
 
             if (XR_SUCCEEDED(result)) {
+                LogDebug("<< xrGetSystemProperties -> {}\n", xr::ToCString(result));
                 if (isSystemHandled(systemId) && m_ctx.requestedFoveatedRendering) {
                     XrSystemFoveatedRenderingPropertiesVARJO* foveatedProperties =
                         reinterpret_cast<XrSystemFoveatedRenderingPropertiesVARJO*>(properties->next);
@@ -326,6 +359,7 @@ namespace openxr_api_layer {
                                                uint32_t viewConfigurationTypeCapacityInput,
                                                uint32_t* viewConfigurationTypeCountOutput,
                                                XrViewConfigurationType* viewConfigurationTypes) override {
+            LogDebug(">> xrEnumerateViewConfigurations entry\n");
             QVF_TRACE("xrEnumerateViewConfigurations",
                       TLXArg(instance, "Instance"),
                       TLArg((int)systemId, "SystemId"),
@@ -360,6 +394,9 @@ namespace openxr_api_layer {
             }
 
             if (XR_SUCCEEDED(result)) {
+                LogDebug("<< xrEnumerateViewConfigurations -> {} (count={})\n",
+                               xr::ToCString(result),
+                               *viewConfigurationTypeCountOutput);
                 QVF_TRACE("xrEnumerateViewConfigurations",
                           TLArg(*viewConfigurationTypeCountOutput, "ViewConfigurationTypeCountOutput"));
 
@@ -381,6 +418,7 @@ namespace openxr_api_layer {
                                                    uint32_t viewCapacityInput,
                                                    uint32_t* viewCountOutput,
                                                    XrViewConfigurationView* views) override {
+            LogDebug(">> xrEnumerateViewConfigurationViews entry\n");
             QVF_TRACE("xrEnumerateViewConfigurationViews",
                       TLXArg(instance, "Instance"),
                       TLArg((int)systemId, "SystemId"),
@@ -437,6 +475,9 @@ namespace openxr_api_layer {
             }
 
             if (XR_SUCCEEDED(result)) {
+                LogDebug("<< xrEnumerateViewConfigurationViews -> {} (count={})\n",
+                               xr::ToCString(result),
+                               *viewCountOutput);
                 if (viewCapacityInput && views) {
                     for (uint32_t i = 0; i < *viewCountOutput; i++) {
                         QVF_TRACE("xrEnumerateViewConfigurationViews",
@@ -461,6 +502,7 @@ namespace openxr_api_layer {
                                                   uint32_t environmentBlendModeCapacityInput,
                                                   uint32_t* environmentBlendModeCountOutput,
                                                   XrEnvironmentBlendMode* environmentBlendModes) override {
+            LogDebug(">> xrEnumerateEnvironmentBlendModes entry\n");
             QVF_TRACE("xrEnumerateEnvironmentBlendModes",
                       TLXArg(instance, "Instance"),
                       TLArg((int)systemId, "SystemId"),
@@ -481,6 +523,9 @@ namespace openxr_api_layer {
                                                                                 environmentBlendModes);
 
             if (XR_SUCCEEDED(result)) {
+                LogDebug("<< xrEnumerateEnvironmentBlendModes -> {} (count={})\n",
+                               xr::ToCString(result),
+                               *environmentBlendModeCountOutput);
                 QVF_TRACE("xrEnumerateEnvironmentBlendModes",
                           TLArg(*environmentBlendModeCountOutput, "EnvironmentBlendModeCountOutput"));
 
@@ -500,6 +545,7 @@ namespace openxr_api_layer {
                                                   XrSystemId systemId,
                                                   XrViewConfigurationType viewConfigurationType,
                                                   XrViewConfigurationProperties* configurationProperties) override {
+            LogDebug(">> xrGetViewConfigurationProperties entry\n");
             QVF_TRACE("xrGetViewConfigurationProperties",
                       TLXArg(instance, "Instance"),
                       TLArg((int)systemId, "SystemId"),
@@ -516,6 +562,7 @@ namespace openxr_api_layer {
                 instance, systemId, viewConfigurationType, configurationProperties);
 
             if (XR_SUCCEEDED(result)) {
+                LogDebug("<< xrGetViewConfigurationProperties -> {}\n", xr::ToCString(result));
                 if (originalViewConfigurationType == XR_VIEW_CONFIGURATION_TYPE_PRIMARY_QUAD_VARJO) {
                     configurationProperties->viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_QUAD_VARJO;
                 }
@@ -532,6 +579,8 @@ namespace openxr_api_layer {
         XrResult xrCreateSession(XrInstance instance,
                                  const XrSessionCreateInfo* createInfo,
                                  XrSession* session) override {
+            LogDebug(">> xrCreateSession entry\n");
+
             if (createInfo->type != XR_TYPE_SESSION_CREATE_INFO) {
                 return XR_ERROR_VALIDATION_FAILURE;
             }
@@ -543,6 +592,8 @@ namespace openxr_api_layer {
 
             const XrResult result = OpenXrApi::xrCreateSession(instance, createInfo, session);
 
+            LogDebug("<< xrCreateSession -> {}\n", xr::ToCString(result));
+
             if (XR_SUCCEEDED(result)) {
                 QVF_TRACE("xrCreateSession", TLXArg(*session, "Session"));
 
@@ -553,7 +604,10 @@ namespace openxr_api_layer {
                         if (m_ctx.requestedD3D11 && entry->type == XR_TYPE_GRAPHICS_BINDING_D3D11_KHR) {
                             const XrGraphicsBindingD3D11KHR* d3dBindings =
                                 reinterpret_cast<const XrGraphicsBindingD3D11KHR*>(entry);
+                            LogDebug(">> initializeD3D11 (device={:p})\n",
+                                           static_cast<void*>(d3dBindings->device));
                             m_graphicsContext.initializeD3D11(d3dBindings->device, this);
+                            LogDebug("<< initializeD3D11 done\n");
                             m_ctx.isSupportedGraphicsApi = true;
                             
                             // Transfer timers to FramePipeline
@@ -587,6 +641,10 @@ namespace openxr_api_layer {
                             break;
                         }
                         entry = entry->next;
+                    }
+
+                    if (!m_ctx.isSupportedGraphicsApi) {
+                        LogWarning("No D3D11/D3D12 graphics binding found in XrSessionCreateInfo chain\n");
                     }
 
                     // Initialize the resources for the eye tracker.
@@ -937,6 +995,24 @@ namespace openxr_api_layer {
                 return XR_ERROR_VALIDATION_FAILURE;
             }
 
+            // Safety net: an uncaught exception here would terminate the
+            // application and lose any buffered log lines. Catch, log, flush,
+            // and return a failure the application can survive.
+            try {
+                return xrEndFrameInternal(session, frameEndInfo);
+            } catch (const std::exception& e) {
+                LogError("xrEndFrame threw: {}\n", e.what());
+                log::Flush();
+                return XR_ERROR_RUNTIME_FAILURE;
+            } catch (...) {
+                LogError("xrEndFrame threw an unknown exception\n");
+                log::Flush();
+                return XR_ERROR_RUNTIME_FAILURE;
+            }
+        }
+
+        XrResult xrEndFrameInternal(XrSession session, const XrFrameEndInfo* frameEndInfo) {
+
             QVF_TRACE("xrEndFrame",
                       TLXArg(session, "Session"),
                       TLArg(frameEndInfo->displayTime, "DisplayTime"),
@@ -1072,11 +1148,13 @@ namespace openxr_api_layer {
 
         // https://www.khronos.org/registry/OpenXR/specs/1.0/html/xrspec.html#xrPollEvent
         XrResult xrPollEvent(XrInstance instance, XrEventDataBuffer* eventData) override {
+            LogDebug(">> xrPollEvent entry\n");
             QVF_TRACE("xrPollEvent", TLXArg(instance, "Instance"));
 
             const XrResult result = OpenXrApi::xrPollEvent(instance, eventData);
 
             if (result == XR_SUCCESS) {
+                LogInformation("<< xrPollEvent -> {} ({})\n", xr::ToCString(result), xr::ToCString(eventData->type));
                 QVF_TRACE("xrPollEvent", TLArg(xr::ToCString(eventData->type), "EventType"));
 
                 // Translate visibility mask events.
@@ -1095,6 +1173,68 @@ namespace openxr_api_layer {
 
             m_actionManager.setPollEventDone();
 
+            return result;
+        }
+
+        // https://www.khronos.org/registry/OpenXR/specs/1.0/html/xrspec.html#xrGetD3D11GraphicsRequirementsKHR
+        // Called right after xrGetSystem, before the application creates its
+        // graphics device and the session.
+        XrResult xrGetD3D11GraphicsRequirementsKHR(XrInstance instance,
+                                                   XrSystemId systemId,
+                                                   XrGraphicsRequirementsD3D11KHR* graphicsRequirements) override {
+            LogDebug(">> xrGetD3D11GraphicsRequirementsKHR entry\n");
+            const XrResult result =
+                OpenXrApi::xrGetD3D11GraphicsRequirementsKHR(instance, systemId, graphicsRequirements);
+            if (XR_SUCCEEDED(result) && graphicsRequirements) {
+                LogDebug("<< xrGetD3D11GraphicsRequirementsKHR -> {} (adapterLuid={:08x}-{:08x} minFeatureLevel={:#x})\n",
+                                xr::ToCString(result),
+                                graphicsRequirements->adapterLuid.LowPart,
+                                (uint32_t)graphicsRequirements->adapterLuid.HighPart,
+                                (unsigned)graphicsRequirements->minFeatureLevel);
+            } else {
+                LogDebug("<< xrGetD3D11GraphicsRequirementsKHR -> {}\n", xr::ToCString(result));
+            }
+            return result;
+        }
+
+        // https://www.khronos.org/registry/OpenXR/specs/1.0/html/xrspec.html#xrEnumeratePerformanceMetricsCounterPathsMETA
+        // Some runtime plugins enumerate metrics counter paths before a session exists.
+        XrResult xrEnumeratePerformanceMetricsCounterPathsMETA(XrInstance instance,
+                                                               uint32_t counterPathCapacityInput,
+                                                               uint32_t* counterPathCountOutput,
+                                                               XrPath* counterPaths) override {
+            LogDebug(">> xrEnumeratePerformanceMetricsCounterPathsMETA entry\n");
+            const XrResult result = OpenXrApi::xrEnumeratePerformanceMetricsCounterPathsMETA(
+                instance, counterPathCapacityInput, counterPathCountOutput, counterPaths);
+            LogDebug("<< xrEnumeratePerformanceMetricsCounterPathsMETA -> {} (count={})\n",
+                            xr::ToCString(result),
+                            counterPathCountOutput ? *counterPathCountOutput : 0u);
+            return result;
+        }
+
+        // https://www.khronos.org/registry/OpenXR/specs/1.0/html/xrspec.html#xrSetPerformanceMetricsStateMETA
+        XrResult xrSetPerformanceMetricsStateMETA(XrSession session, const XrPerformanceMetricsStateMETA* state) override {
+            LogDebug(">> xrSetPerformanceMetricsStateMETA entry\n");
+            const XrResult result = OpenXrApi::xrSetPerformanceMetricsStateMETA(session, state);
+            LogDebug("<< xrSetPerformanceMetricsStateMETA -> {}\n", xr::ToCString(result));
+            return result;
+        }
+
+        // https://www.khronos.org/registry/OpenXR/specs/1.0/html/xrspec.html#xrGetPerformanceMetricsStateMETA
+        XrResult xrGetPerformanceMetricsStateMETA(XrSession session, XrPerformanceMetricsStateMETA* state) override {
+            LogDebug(">> xrGetPerformanceMetricsStateMETA entry\n");
+            const XrResult result = OpenXrApi::xrGetPerformanceMetricsStateMETA(session, state);
+            LogDebug("<< xrGetPerformanceMetricsStateMETA -> {}\n", xr::ToCString(result));
+            return result;
+        }
+
+        // https://www.khronos.org/registry/OpenXR/specs/1.0/html/xrspec.html#xrQueryPerformanceMetricsCounterMETA
+        XrResult xrQueryPerformanceMetricsCounterMETA(XrSession session,
+                                                      XrPath counterPath,
+                                                      XrPerformanceMetricsCounterMETA* counter) override {
+            LogDebug(">> xrQueryPerformanceMetricsCounterMETA entry\n");
+            const XrResult result = OpenXrApi::xrQueryPerformanceMetricsCounterMETA(session, counterPath, counter);
+            LogDebug("<< xrQueryPerformanceMetricsCounterMETA -> {}\n", xr::ToCString(result));
             return result;
         }
 

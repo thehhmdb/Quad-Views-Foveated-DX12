@@ -73,6 +73,13 @@ XrResult __declspec(dllexport) XRAPI_CALL
     if (!logStream.is_open()) {
         std::string logFile = (localAppData / (LayerPrettyName + ".log")).string();
         logStream.open(logFile, std::ios_base::ate);
+        // Flush after every line so the log survives a hard crash: a crashed
+        // process loses the CRT file buffer, which is exactly how a failing
+        // run can produce "no log entries at all". The steady-state file-log
+        // volume is a handful of lines per session (per-frame diagnostics use
+        // ETW tracing or latched warnings), so the per-line flush cost is
+        // negligible.
+        log::SetFlushPerLine(true);
     }
 
     DebugLog("--> xrNegotiateLoaderApiLayerInterface\n");
@@ -98,7 +105,13 @@ XrResult __declspec(dllexport) XRAPI_CALL
 
     // Setup our layer to intercept OpenXR calls.
     apiLayerRequest->layerInterfaceVersion = XR_CURRENT_LOADER_API_LAYER_VERSION;
-    apiLayerRequest->layerApiVersion = XR_CURRENT_API_VERSION;
+    // Claim the highest API version the loader accepts. This layer is a
+    // pass-through for everything it does not implement, so it must never
+    // lower the chain's capability: OpenXR 1.1 loaders compute the chain's
+    // effective API version from the minimum claim across
+    // loader/layers/runtime, and an application requesting a version above
+    // that minimum gets XR_ERROR_API_VERSION_UNSUPPORTED.
+    apiLayerRequest->layerApiVersion = loaderInfo->maxApiVersion;
     apiLayerRequest->getInstanceProcAddr = reinterpret_cast<PFN_xrGetInstanceProcAddr>(xrGetInstanceProcAddr);
     apiLayerRequest->createApiLayerInstance = reinterpret_cast<PFN_xrCreateApiLayerInstance>(xrCreateApiLayerInstance);
 

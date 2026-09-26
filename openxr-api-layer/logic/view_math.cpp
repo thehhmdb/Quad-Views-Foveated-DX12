@@ -64,7 +64,10 @@ namespace openxr_api_layer {
         XrView view[xr::StereoView::Count]{{XR_TYPE_VIEW}, {XR_TYPE_VIEW}};
         for (uint32_t eye = 0; eye < xr::StereoView::Count; eye++) {
             view[eye].fov = m_cachedEyeFov[eye];
-            view[eye].pose = m_cachedEyePoses[eye];
+            // Identity: the resting gaze {0,0,-1} is head-relative (VIEW space), so
+            // the projection camera must be too. A cached pose would offset
+            // m_centerOfFov by the head rotation latched at first locate.
+            view[eye].pose = Pose::Identity();
 
             // Calculate the "resting" gaze position.
             XrVector2f projectedGaze{};
@@ -122,13 +125,20 @@ namespace openxr_api_layer {
 
             views[i].pose = views[stereoViewIndex].pose;
 
+            // The gaze vector from the eye tracker is head-relative (VIEW space).
+            // Projecting it through an eye pose expressed in the application's
+            // reference space would inject that pose's rotation into the projected
+            // gaze -- and the pose cached here is latched at the first valid
+            // xrLocateViews, which can be arbitrarily rotated. The correct
+            // projection camera for a VIEW-space direction is the identity: the
+            // eye's frustum axes are the head's axes (per-eye poses differ only by
+            // IPD translation, which cannot affect a direction).
             XrView viewForGazeProjection{};
-            viewForGazeProjection.pose = m_cachedEyePoses[stereoViewIndex];
+            viewForGazeProjection.pose = Pose::Identity();
             viewForGazeProjection.fov = views[stereoViewIndex].fov;
             XrVector2f projectedGaze;
-            // [DEBUG-QVF-POS] Always log the raw gaze and the cached eye pose used for
-            // projection, so we can see whether a constant rightward focus offset comes
-            // from a skewed gaze vector or a yaw error in the cached pose.
+            // [DEBUG-QVF-POS] Always log the raw gaze and the cached eye pose (kept for
+            // comparison with the located one; it is no longer used for projection).
             {
                 const XrQuaternionf& q = m_cachedEyePoses[stereoViewIndex].orientation;
                 LogDebug("  xrLocateViews[{}]: rawGaze=({:.4f},{:.4f},{:.4f}) isGazeValid={} "

@@ -122,4 +122,42 @@ namespace openxr_api_layer {
         EXPECT_EQ(pipeline.getFrameRate(), 0u);
     }
 
+    // Lifecycle tests: the constructor unconditionally starts the turbo-mode worker
+    // thread, so a pipeline that is destroyed without ever seeing a session must
+    // still shut that thread down cleanly. These tests exercise the public API only.
+    TEST(FramePipelineLifecycleTest, DestructorWithoutDestroy_JoinsWorkerThread) {
+        // Construct and immediately let it fall out of scope. If the destructor
+        // fails to join the worker thread, std::terminate() aborts the test run.
+        FramePipeline pipeline;
+    }
+
+    TEST(FramePipelineLifecycleTest, DestroyThenDestructor_IsIdempotent) {
+        FramePipeline pipeline;
+        pipeline.destroy();
+        // A second destroy() (via the destructor) must be safe: no double-join,
+        // no hang. destroy() is idempotent because joinable() is checked.
+        pipeline.destroy();
+    }
+
+    TEST(FramePipelineLifecycleTest, TurboModeEngaged_DestroyCleansUpWorker) {
+        MockOpenXrApi mockApi;
+        mockApi.initializeForTesting();
+
+        FramePipeline pipeline;
+        XrFrameEndInfo endInfo{XR_TYPE_FRAME_END_INFO};
+        bool isAsyncMode = false;
+
+        // Engage turbo mode so the worker thread is actively processing a wait.
+        EXPECT_CALL(mockApi, xrEndFrame(testing::_, testing::_))
+            .WillOnce(testing::Return(XR_SUCCESS));
+        EXPECT_CALL(mockApi, xrWaitFrame(testing::_, testing::_, testing::_))
+            .WillRepeatedly(testing::Return(XR_ERROR_SESSION_LOST));
+
+        EXPECT_TRUE(pipeline.endFrame(&mockApi, reinterpret_cast<XrSession>(1), &endInfo, true, &isAsyncMode) == XR_SUCCESS);
+        EXPECT_TRUE(isAsyncMode);
+
+        // destroy() must stop the worker even if it is mid-wait.
+        pipeline.destroy();
+    }
+
 } // namespace openxr_api_layer

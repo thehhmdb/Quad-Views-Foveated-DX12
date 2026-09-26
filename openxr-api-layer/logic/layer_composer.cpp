@@ -79,6 +79,12 @@ namespace openxr_api_layer {
             return XR_SUCCESS;
         }
 
+        // Flush so diagnostics logged during this submit survive an unexpected
+        // termination.
+        if (frameEndInfo->layerCount > 0) {
+            log::Flush();
+        }
+
         // Reuse the member allocation buffers (capacity persists across frames).
         m_projectionAllocator.clear();
         m_projectionViewAllocator.clear();
@@ -191,6 +197,8 @@ namespace openxr_api_layer {
                             LogWarning("xrEndFrame_CreateSwapchain failed with XrResult={}\n", static_cast<int>(swapchainResult));
                             return XR_ERROR_RUNTIME_FAILURE;
                         }
+                        // Checkpoint flush: the full-FOV destination swapchain exists.
+                        log::Flush();
                     }
 
                     XrCompositionLayerProjectionView focusView = proj->views[focusViewIndex];
@@ -209,6 +217,8 @@ namespace openxr_api_layer {
                                          *swapchainForFocusView,
                                          proj->layerFlags,
                                          useQuadViews);
+                    // Checkpoint flush: this view's composition completed.
+                    log::Flush();
 
                     // If compositing this view failed, stop patching layers and fall back to
                     // submitting the app's original layers unchanged.
@@ -317,6 +327,8 @@ namespace openxr_api_layer {
         swapchainsToRelease.erase(std::unique(swapchainsToRelease.begin(), swapchainsToRelease.end()),
                                   swapchainsToRelease.end());
         outSwapchainsToRelease = std::move(swapchainsToRelease);
+        // Checkpoint flush: all layers processed and patched.
+        log::Flush();
         return XR_SUCCESS;
     }
 
@@ -420,14 +432,31 @@ namespace openxr_api_layer {
             return;
         }
 
-        // Delegate to compositor
-        void* result = m_graphicsContext.getCompositor()->compositeView(params,
-                                     stereoSwapchainInfo,
-                                     stereoView,
-                                     focusSwapchainInfo,
-                                     focusView);
+        // Delegate to compositor. An exception escaping here would terminate the
+        // application and lose buffered log lines, so catch, log, flush, and
+        // fall back to passing the application's original layers through
+        // unchanged.
+        void* result = nullptr;
+        try {
+            result = m_graphicsContext.getCompositor()->compositeView(params,
+                                       stereoSwapchainInfo,
+                                       stereoView,
+                                       focusSwapchainInfo,
+                                       focusView);
+        } catch (const std::exception& e) {
+            LogError("Compositor compositeView threw: {}\n", e.what());
+            log::Flush();
+            m_compositorFailed = true;
+            return;
+        } catch (...) {
+            LogError("Compositor compositeView threw an unknown exception\n");
+            log::Flush();
+            m_compositorFailed = true;
+            return;
+        }
         if (!result) {
             LogError("Compositor returned null destination — aborting composition.\n");
+            log::Flush();
             m_compositorFailed = true;
             return;
         }

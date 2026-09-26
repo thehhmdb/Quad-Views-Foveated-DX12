@@ -218,9 +218,16 @@ namespace openxr_api_layer {
 
     /// Returns true when the sub-image region already covers the full swapchain
     /// at array index 0, so no flatten copy is required.
+    ///
+    /// Array swapchains always flatten: the direct-bind path uses a plain
+    /// TEXTURE2D SRV, which is only valid on an arraySize=1 resource, so
+    /// binding an array resource through it is a view/resource dimension
+    /// mismatch with undefined results. The staged copy already resolves the
+    /// slice index, so the array case costs one small copy.
     inline bool NeedsFlattening(const XrCompositionLayerProjectionView& view,
                                 const SwapchainInfo& swapchainInfo) {
-        return !(view.subImage.imageRect.offset.x == 0 &&
+        return !(swapchainInfo.createInfo.arraySize <= 1 &&
+                 view.subImage.imageRect.offset.x == 0 &&
                  view.subImage.imageRect.offset.y == 0 &&
                  view.subImage.imageRect.extent.width == swapchainInfo.createInfo.width &&
                  view.subImage.imageRect.extent.height == swapchainInfo.createInfo.height &&

@@ -40,7 +40,7 @@ namespace openxr_api_layer {
     class FramePipeline {
       public:
         FramePipeline();
-        ~FramePipeline() = default;
+        ~FramePipeline();
 
         // Non-copyable
         FramePipeline(const FramePipeline&) = delete;

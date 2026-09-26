@@ -73,6 +73,15 @@ namespace openxr_api_layer::log {
     // that the templated functions previously incurred.
     void LogString(LogLevel level, std::string_view msg);
 
+    // Flush the buffered log stream to disk immediately. Call from error paths
+    // that may crash or abort before the atexit handler runs.
+    void Flush();
+
+    // Enable/disable flushing after every logged line. Much slower, but
+    // guarantees no log tail is lost when the host application crashes.
+    // Intended for diagnostics (e.g. bypass mode).
+    void SetFlushPerLine(bool enable);
+
     // Level-gated logging functions.
     // The format string is only evaluated (via fmt::format) if the level is enabled,
     // avoiding allocation overhead for filtered messages.

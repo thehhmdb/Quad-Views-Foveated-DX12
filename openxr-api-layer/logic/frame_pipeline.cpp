@@ -32,6 +32,14 @@ namespace openxr_api_layer {
     using log::ErrorLog;
     using log::LogDebug;
 
+    FramePipeline::~FramePipeline() {
+        // RAII safety net: if destroy() was never called (e.g. the application
+        // tears down the instance without ever creating a session), the worker
+        // thread is still joinable. Destroying a joinable std::thread calls
+        // std::terminate() and kills the process instantly.
+        destroy();
+    }
+
     FramePipeline::FramePipeline() {
         // Start persistent turbo-mode worker thread
         m_waitThread = std::thread([this]() {
